@@ -4,6 +4,7 @@ import { ESCAPE_OWN_ATTR, usePopoverAnchor } from '../../hooks/use-popover-ancho
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './PromptField.module.css'
 import { PopoverRoot } from './PopoverRoot'
+import { ClearFunnel } from './ClearFunnel'
 import { RemoveButton } from './RemoveButton'
 
 /** One choice of a `PromptField`. */
@@ -55,8 +56,9 @@ const NO_REFS: RefObject<HTMLElement | null>[] = []
  * Selection semantics: each picked id appears as a chip with a `×`; the
  * value is the chips' id list, OR-combined by whoever applies it. A pick
  * while the field has search text clears the text (the focus stays in the
- * field). While anything is picked, a × at the field's end clears every
- * pick at once (the focus stays in the field).
+ * field). The funnel at the field's start (`ClearFunnel`), red while
+ * anything is picked, clears every pick at once (the focus stays in the
+ * field).
  *
  * Keyboard (as `ChipSelector`): one option is highlighted — the first match
  * while a query is typed, else the last one moved to or picked (none until
@@ -228,11 +230,20 @@ export function PromptField({
         className={styles.field}
         onClick={() => inputRef.current?.focus()}
       >
+        <ClearFunnel
+          active={selected.length > 0}
+          label={`Clear ${label}`}
+          onClear={() => {
+            onChange([])
+            inputRef.current?.focus()
+          }}
+        />
         {selected.map((opt) => (
           <span key={opt.id} className={styles.chip}>
             {chipMarks && opt.mark != null && <span className={styles.chipMark} aria-hidden="true">{opt.mark}</span>}
             <span className={styles.chipName}>{opt.name}</span>
             <RemoveButton
+              iconSize={10}
               stopPropagation
               onClick={() => removeChip(opt.id)}
               label={`Remove ${opt.name}`}
@@ -261,20 +272,6 @@ export function PromptField({
           aria-autocomplete="list"
           aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
         />
-        {selected.length > 0 && (
-          <RemoveButton
-            tabIndex={-1}
-            label={`Clear ${label}`}
-            tooltip
-            // The press keeps the focus (and the caret) in the field.
-            keepFocus
-            stopPropagation
-            onClick={() => {
-              onChange([])
-              inputRef.current?.focus()
-            }}
-          />
-        )}
       </div>
       {trailing}
       {open && createPortal(

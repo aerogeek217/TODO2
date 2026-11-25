@@ -189,8 +189,8 @@ export function boardTileRoom(squares: number, titles: number, size: { width: nu
 /** The gap between tiles (px) and a tile's least height — its padding, its head, the gap and its room's least 1px (`ShortcutsWidget.module.css`). */
 const BOARD_TILE_GAP_PX = 8
 const BOARD_TILE_HEAD_PX = 45
-/** A tile's least width (px), and the most a head on one line may raise every tile's width to. */
-const BOARD_TILE_MIN_PX = 120
+/** A tile's least width (px: four squares across and its padding), and the most a head on one line may raise every tile's width to. */
+const BOARD_TILE_MIN_PX = 64
 const BOARD_TILE_MIN_CAP_PX = 280
 
 /**
@@ -199,10 +199,25 @@ const BOARD_TILE_MIN_CAP_PX = 280
  * padding), never under `BOARD_TILE_MIN_PX` nor over `BOARD_TILE_MIN_CAP_PX`
  * (past that a long name shortens). The grid gives every tile one width.
  */
-export function boardTileMinWidth(heads: Iterable<number>): number {
+function boardTileMinWidth(heads: Iterable<number>): number {
   let widest = BOARD_TILE_MIN_PX
   for (const w of heads) if (w > widest) widest = w
   return Math.min(BOARD_TILE_MIN_CAP_PX, Math.ceil(widest))
+}
+
+/** A tile's head on one line (px): without its icon, and what its icon and the gap after it add (0 for none). */
+export interface BoardHead { bare: number; icon: number }
+
+/**
+ * The tiles' one width at least, and whether their heads show their icons:
+ * the icons go, from every tile at once, only when that puts the `count`
+ * tiles on fewer lines across `width`. Unmeasured, the icons show.
+ */
+export function boardTileFit(heads: readonly BoardHead[], count: number, width: number): { tileMin: number; icons: boolean } {
+  const withIcons = boardTileMinWidth(heads.map((h) => h.bare + h.icon))
+  const without = boardTileMinWidth(heads.map((h) => h.bare))
+  const icons = width <= 0 || without >= withIcons || boardLines(count, width, without) >= boardLines(count, width, withIcons)
+  return { tileMin: icons ? withIcons : without, icons }
 }
 
 /** How many lines `count` tiles at least `tileMin` wide wrap onto in `width` (the grid's `auto-fit`). */

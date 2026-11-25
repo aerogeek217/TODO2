@@ -36,7 +36,7 @@ export function ExpressionPills({ pieces, onRemove, pillAttr }: {
         <span key={i} className={`${tintStyles.tint} ${styles.pill}`} data-tint={pillTint(piece.term)} {...{ [pillAttr]: piece.text }}>
           <span aria-hidden="true">{piece.text}</span>
           <RemoveButton
-            size={14}
+            iconSize={10}
             className={styles.pillRemove}
             tabIndex={-1}
             label={`Remove ${piece.text}`}

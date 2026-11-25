@@ -23,6 +23,7 @@
  */
 
 import { emptyPredicate, type TodoPredicate } from './filter-predicate'
+import type { TodoSortBy } from './todo-sort-group'
 import {
   DEFAULT_TREND_NAME,
   DEFAULT_TREND_RANGE,
@@ -203,10 +204,22 @@ export interface ReviewTabViewState {
  * (`plannerUnplannedFilter`), so a Planner that never set one holds what it
  * always did; an empty predicate: nothing joins, Unplanned stays empty. It
  * decides Unplanned only, never which days a task sits on.
+ * `unplannedSort` is how the Unplanned tray sorts, as a list sorts: absent
+ * or `manual`, the hand order.
  */
 export interface PlannerTabConfig {
   unplanned?: TodoPredicate
+  unplannedSort?: PlannerUnplannedSort
 }
+
+/** The Unplanned tray's sort: a list's sort (`by`) and, for one with a direction, `desc` when reversed. */
+export interface PlannerUnplannedSort {
+  by: TodoSortBy
+  direction?: 'desc'
+}
+
+/** The sorts Unplanned offers: a list's, but Planned and Completed (it holds open tasks with no plan only). */
+export const PLANNER_UNPLANNED_SORTS: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'lastFollowup', 'name', 'people', 'status', 'created', 'modified']
 
 /** The Unplanned filter a Planner reads: its own, else Focus (`/focus`). */
 export function plannerUnplannedFilter(config: PlannerTabConfig): TodoPredicate {

@@ -44,6 +44,15 @@ const SEED: WorkspaceSeed = {
   ],
 }
 
+/** SEED with long list names: tiles too wide for three across a 370px body. */
+const LONG_SEED: WorkspaceSeed = {
+  ...SEED,
+  listDefinitions: [
+    { name: 'Errands around town', layoutIdx: 0 },
+    { name: 'Clients and partners', layoutIdx: 1 },
+  ],
+}
+
 /** One layout: Errands and Clients in one cell, Someday under it, the board beside them showing this layout's lists. */
 const LAYOUT_SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'Errands' }, { name: 'Clients' }, { name: 'Someday' }],
@@ -125,9 +134,9 @@ test.describe('Lists I pick', () => {
   })
 
   test('as the cell shrinks the titles go first, then one line of tiles, then rows', async ({ page }) => {
-    await seedWorkspace(page, SEED)
-    await addList(page, 'Errands')
-    await addList(page, 'Clients')
+    await seedWorkspace(page, LONG_SEED)
+    await addList(page, 'Errands around town')
+    await addList(page, 'Clients and partners')
     await expectLayoutStored(page)
     const face = () => widget(page).getAttribute('data-shortcuts-face')
     const peekLines = () => widget(page).locator('[data-peek-line]').count()
@@ -135,7 +144,7 @@ test.describe('Lists I pick', () => {
     await expect.poll(face).toBe('large')
     await expect.poll(peekLines).toBe(6)
     await expect.poll(squares).toBe(8)
-    // A body about 370px wide (tiles of 120px, as wide as their heads ask): two tiles across, so the Add a list tile
+    // A body about 370px wide (tiles as wide as their long names ask): two tiles across, so the Add a list tile
     // starts a second row.
     const wide = (await widget(page).boundingBox())?.width ?? 1
     const width = Math.round(1440 * 370 / wide)
@@ -162,9 +171,9 @@ test.describe('Lists I pick', () => {
     // Narrow: a row per list, its bar in place of squares.
     await page.setViewportSize({ width: 700, height: 900 })
     await expect.poll(face).toBe('rows')
-    await expect.poll(() => tileNames(page)).toEqual(['Errands', 'Clients'])
+    await expect.poll(() => tileNames(page)).toEqual(['Errands around town', 'Clients and partners'])
     await expect(widget(page).locator('button[data-tone]')).toHaveCount(0)
-    await expect(tile(page, 'Clients').locator('[data-board-bar] [data-tone]')).toHaveCount(2)
+    await expect(tile(page, 'Clients and partners').locator('[data-board-bar] [data-tone]')).toHaveCount(2)
   })
 })
 
@@ -211,6 +220,55 @@ test('tiles share one width wide enough for every name, wrap instead of folding 
   await expect.poll(unseen).toBe(0)
   const v = await widths()
   expect(Math.max(...v) - Math.min(...v)).toBeLessThanOrEqual(1)
+  expect(await cut()).toBe(0)
+})
+
+/**
+ * Six short names, each tab with its kind's icon, on a board about 600px wide beside a Notes cell, over a cell of
+ * their tabs. The widest head is Helo COE's: about 96px with its icon, 79px without — six across need about 616px
+ * with the icons, 514px without.
+ */
+const NARROW_NAMES = ['Helo COE', 'EAC', 'R&D', 'Internal', 'AI', 'Quality']
+const NARROW_SEED: WorkspaceSeed = {
+  listDefinitions: NARROW_NAMES.map((name) => ({ name })),
+  tasks: TASKS,
+  layouts: [{
+    name: 'Home',
+    table: {
+      areas: ['b n', 'l l'],
+      cols: [4, 5],
+      rows: [1, 20],
+      cells: [
+        { id: 'b', tabs: [{ id: 't-board', kind: 'shortcuts', board: { source: 'layout' } }] },
+        { id: 'n', tabs: [{ id: 't-notes', kind: 'notes' }] },
+        { id: 'l', tabs: NARROW_NAMES.map((_, i) => ({ id: `t-${i}`, kind: 'lens' as const, listDefIdx: i })) },
+      ],
+    },
+  }],
+}
+
+test('tiles as narrow as the widest name; the icons go only when that puts the tiles on fewer lines', async ({ page }) => {
+  await seedWorkspace(page, NARROW_SEED)
+  const board = wsCell(page, 'b').locator('[data-shortcuts]')
+  const boardTiles = board.locator('[data-shortcut-tile]')
+  await expect(boardTiles).toHaveCount(6)
+  const lines = () => boardTiles.evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size)
+  const icons = () => board.locator('[data-shortcut-tile] [data-app-icon]').count()
+  const cut = () => board.locator('[data-shortcut-name]').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth).length)
+  const widest = async () => Math.max(...await boardTiles.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width)))
+  // About 600px: six across only without the icons, so they go — every tile under 120px, no name cut short.
+  await expect.poll(lines).toBe(1)
+  await expect.poll(icons).toBe(0)
+  expect(await widest()).toBeLessThan(120)
+  expect(await cut()).toBe(0)
+  // Wider: six across with them, so they come back.
+  await page.setViewportSize({ width: 1800, height: 900 })
+  await expect.poll(icons).toBe(6)
+  await expect.poll(lines).toBe(1)
+  // Narrow: two lines either way, so they stay.
+  await page.setViewportSize({ width: 900, height: 900 })
+  await expect.poll(lines).toBe(2)
+  await expect.poll(icons).toBe(6)
   expect(await cut()).toBe(0)
 })
 

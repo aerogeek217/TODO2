@@ -8,7 +8,7 @@
   white-space: nowrap;
 }
 
-/* A pill's × (`RemoveButton`, 14px, a 24px target): inside the pill's line, taking presses where the
+/* A pill's × (`RemoveButton`, 16px with a 10px glyph, a 24px target): inside the pill's line, taking presses where the
  * host's layer doesn't. */
 .pillRemove {
   margin: 0 -1px 0 3px;

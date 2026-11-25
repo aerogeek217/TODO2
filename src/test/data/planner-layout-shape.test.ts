@@ -149,3 +149,33 @@ describe('the Planner’s Unplanned filter', () => {
     }
   })
 })
+
+/** Its Unplanned sort (`config.unplannedSort`): a list's sort, but Planned and Completed; absent is manual. */
+describe('the Planner’s Unplanned sort', () => {
+  it('keeps a sort it offers, reversed only on one with a direction', () => {
+    for (const unplannedSort of [{ by: 'manual' }, { by: 'name' }, { by: 'deadline', direction: 'desc' }, { by: 'status' }]) {
+      const row = planner(undefined, { unplannedSort })
+      expect(checkLayoutBody(row)).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual([])
+      expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: { unplannedSort } })
+    }
+  })
+
+  it('drops a sort it doesn’t offer or that doesn’t read — manual again —, a fix; the filter stays', () => {
+    const errands = { ...emptyPredicate(), tags: [4] }
+    for (const unplannedSort of [{ by: 'completed' }, { by: 'planned' }, { by: 'soon' }, 'name', null]) {
+      const row = planner(undefined, { unplanned: errands, unplannedSort })
+      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].config.unplannedSort')
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: { unplanned: errands } })
+    }
+  })
+
+  it('drops a direction a sort has no use for, and a key it doesn’t have, a fix; the sort stays', () => {
+    for (const unplannedSort of [{ by: 'status', direction: 'desc' }, { by: 'name', direction: 'asc' }, { by: 'name', then: 'due' }]) {
+      const row = planner(undefined, { unplannedSort })
+      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].config.unplannedSort')
+      expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: { unplannedSort: { by: unplannedSort.by } } })
+    }
+  })
+})

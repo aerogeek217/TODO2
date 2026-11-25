@@ -471,6 +471,20 @@ describe('plannerView', () => {
     expect(uids(view.days[0]?.tasks ?? [])).toEqual(uids([d, c]))
   })
 
+  it('sorts Unplanned by its compare when given, the hand order ignored there only', () => {
+    const a = task({ focus: true, sortOrder: 1 })
+    const b = task({ focus: true, sortOrder: 2 })
+    const c = task({ focus: true, sortOrder: 3 })
+    const d = task({ doDate: day(0) })
+    const e = task({ doDate: day(0) })
+    const order = [b.uid, a.uid, e.uid]
+    expect(uids(plannerView([a, b, c, d, e], { today: TODAY, order }).unplanned.tasks)).toEqual(uids([b, a, c]))
+    const view = plannerView([a, b, c, d, e], { today: TODAY, order, unplannedCompare: (x, y) => y.sortOrder - x.sortOrder })
+    expect(uids(view.unplanned.tasks)).toEqual(uids([c, b, a]))
+    expect(uids(view.today.tasks)).toEqual(uids([e, d]))
+    expect(uids(view.tasks).slice(-3)).toEqual(uids([c, b, a]))
+  })
+
   describe('tiles', () => {
     it('count the rows sitting on each day', () => {
       const tasks = [

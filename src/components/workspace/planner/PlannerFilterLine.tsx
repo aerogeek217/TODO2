@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import type { TodoPredicate } from '../../../models/filter-predicate'
+import type { PlannerUnplannedSort } from '../../../models/workspace-layout'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression, wholeExpression } from '../../../utils/filter-expression'
 import { ExpressionWords } from '../../shared/filters/ExpressionWords'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { FunnelIcon } from '../../shared/icons'
 import { openPlannerSettings, UNPLANNED_FILTER_LABEL } from './open-planner-settings'
+import { PlannerSortControl } from './PlannerSortControl'
 import styles from './PlannerWidget.module.css'
 
 /**
@@ -15,9 +17,10 @@ import styles from './PlannerWidget.module.css'
  * fading with `+N more`, the exact text in the tooltip) — or `Nothing joins
  * on its own` for an empty one. A click opens the Planner settings
  * (`openPlannerSettings`). It is the settings' anchor
- * (`data-planner-filter-line`).
+ * (`data-planner-filter-line`). At its end, Unplanned's sort
+ * (`PlannerSortControl`), as a list's line ends with its sort.
  */
-export function PlannerFilterLine({ tabId, filter }: { tabId: string; filter: TodoPredicate }) {
+export function PlannerFilterLine({ tabId, filter, sort }: { tabId: string; filter: TodoPredicate; sort: PlannerUnplannedSort | undefined }) {
   const names = useChipNames()
   const expression = useMemo(() => wholeExpression(filter), [filter])
   const text = useMemo(() => (expression ? printExpression(expression, false, expressionNamesOf(names)) : ''), [expression, names])
@@ -39,6 +42,7 @@ export function PlannerFilterLine({ tabId, filter }: { tabId: string; filter: To
           <span className={styles.filterNoneWords}>Nothing joins</span>
         </button>
       )}
+      <PlannerSortControl tabId={tabId} sort={sort} />
     </div>
   )
 }

@@ -122,6 +122,8 @@ Where each part is drawn is in [Faces](planner-widget.md#faces).
 
 Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, the Unplanned filter), then date, then `sortOrder` (`plannerOrder`).
 
+**Unplanned can be sorted** as a list is (`PlannerTabConfig.unplannedSort`, layout config: `{ by, direction? }`). A sort other than Manual orders the tray by a list's comparator (`list-sections.listSortComparator`, passed to `plannerView` as `unplannedCompare` by `hooks/use-planner`), and the hand order counts there no more. Absent or `manual`, the hand order. The sorts are a list's but Planned and Completed (`PLANNER_UNPLANNED_SORTS`): Unplanned holds open tasks with no plan.
+
 ## Top line and Reset plan
 
 Alone in its cell, the Planner's top line reads:
@@ -164,7 +166,7 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | | `T` is its natural day | whatever plan state it has is cleared (`own`) — a later plan too; with none to clear, nothing |
 | | sits there already | nothing (the order only) |
 | | any other | planned for `T` (`plan`: `doDate = T`) |
-| **Unplanned** | sits there already | nothing (the order only) |
+| **Unplanned** | sits there already | nothing (the order only); in a sorted Unplanned the order is the rows as sorted with the row moved, and the sort switches to Manual, one undo step (`Switched Unplanned to manual order`) |
 | | planned | its plan cleared (`unplan`): back to its natural day, kept in Unplanned by the Unplanned filter, or out of the Planner, [said so](#nothing-leaves-the-planner-silently) |
 | | any other | refused: nothing is put in Unplanned by hand |
 | **Delayed** | any | **takes no drop**; a row already in it only reorders |

@@ -49,7 +49,9 @@ function useTallyGap(
       if (!bar || !tray || !right) return
       const barLeft = bar.getBoundingClientRect().left
       const trayRight = tray.getBoundingClientRect().right
-      const rightLeft = right.getBoundingClientRect().left
+      // The right zone's first shown part (the storage pill), not its box: the zone's own left padding is empty bar.
+      const parts = Array.from(right.children, (el) => el.getBoundingClientRect()).filter((r) => r.width > 0)
+      const rightLeft = parts.length > 0 ? Math.min(...parts.map((r) => r.left)) : right.getBoundingClientRect().left
       const left = Math.round(trayRight - barLeft + TALLY_GAP_PX)
       const room = Math.max(0, Math.floor(rightLeft - trayRight - 2 * TALLY_GAP_PX))
       setGap((shown) => (shown && shown.left === left && shown.room === room ? shown : { left, room }))
@@ -71,8 +73,8 @@ function useTallyGap(
 
 /**
  * The tally of tasks finished today (flair P3, board 12b): scratched marks
- * in the top bar's free stretch right of the filter tray, four strokes then
- * a slash. An absolute layer, so the bar's fold and centring never see it.
+ * in the top bar's free stretch right of the filter tray, at its right end
+ * (just left of the storage pill's sync dot), four strokes then a slash. An absolute layer, so the bar's fold and centring never see it.
  * The newest whole groups that fit show; with no room for one, nothing. Off
  * in Settings › Appearance › Theme (`tallyMarks`). A click lists today's
  * tasks in the task dialog (`showDoneToday`).
@@ -113,7 +115,9 @@ function TallyWall({ count, left, room }: { count: number; left: number; room: n
   if (layout.width === 0) return null
   const label = tallyLabel(count)
   const width = Math.ceil(layout.width) + 1
-  return <TallyButton label={label} left={left} width={width} layout={layout} fresh={current.fresh} />
+  // Against the right zone (its storage pill's sync dot first), not the tray: the marks end where the gap does.
+  const end = left + room
+  return <TallyButton label={label} left={Math.max(left, end - width)} width={width} layout={layout} fresh={current.fresh} />
 }
 
 function TallyButton({ label, left, width, layout, fresh }: {

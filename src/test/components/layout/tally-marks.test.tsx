@@ -66,12 +66,13 @@ describe('TallyMarks', () => {
     expect(document.querySelector('[data-tally]')).toBeNull()
   })
 
-  it('a mark per task done today, after the tray, named by the count; none scratches in on load', async () => {
+  it('a mark per task done today, ending 10px before the right zone, named by the count; none scratches in on load', async () => {
     useTodoStore.setState({ todos: done(7) })
     render(<Bar trayRight={600} />)
     await frame()
     const tally = document.querySelector<HTMLElement>('[data-tally]')
-    expect(tally?.style.left).toBe('610px')
+    const width = Number(tally?.querySelector('svg')?.getAttribute('width'))
+    expect(parseFloat(tally?.style.left ?? '') + width).toBe(890)
     expect(screen.getByRole('button', { name: '7 done today. Show them' })).toBeInTheDocument()
     expect(marks()).toHaveLength(7)
     expect(marks().some((p) => /fresh/.test(p.getAttribute('class') ?? ''))).toBe(false)

@@ -148,7 +148,7 @@
   flex: 1 0 0;
   min-height: 0;
   /* auto-fit: the columns no tile fills fold away, so the tiles share the line, all as wide — each at least as wide as
-     the widest head on one line (`--board-tile-min`, `boardTileMinWidth`); they wrap onto more lines when that doesn't fit. */
+     the widest head on one line (`--board-tile-min`, `boardTileFit`); they wrap onto more lines when that doesn't fit. */
   grid-template-columns: repeat(auto-fit, minmax(min(var(--board-tile-min, 120px), 100%), 1fr));
   /* Never shorter than a tile's head (two lines when its capsule wraps). */
   grid-auto-rows: minmax(min-content, var(--board-tile-max));
@@ -256,6 +256,11 @@
   gap: 4px;
   height: 18px;
   margin-left: auto;
+}
+
+/* A tile's empty meta takes no line of its own when the tile is narrower than the title's basis. */
+.meta:empty {
+  display: none;
 }
 
 .icon {
@@ -427,4 +432,17 @@
   min-height: 40px;
   border: 1px dashed var(--color-border);
   background: none;
+  /* Its width is the grid's, never its words': too narrow for them, it shows only its plus (its name stays its label). */
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.addLabel {
+  white-space: nowrap;
+}
+
+@container (max-width: 96px) {
+  .addLabel {
+    display: none;
+  }
 }

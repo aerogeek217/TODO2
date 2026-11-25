@@ -53,7 +53,7 @@ const stored = () => useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as 
 const unplanned = () => [...document.querySelectorAll('[data-planner-group="unplanned"] [data-task-title]')].map((r) => r.getAttribute('data-task-title'))
 const line = () => document.querySelector<HTMLElement>('[data-planner-filter-line="plan"]')!
 const settings = () => document.querySelector<HTMLElement>('[data-planner-settings="plan"]')
-const openFromLine = () => fireEvent.click(within(line()).getByRole('button'))
+const openFromLine = () => fireEvent.click(within(line()).getByRole('button', { name: /^Unplanned filter/ }))
 /** Types `text` as the filter's expression, then leaves the field, which writes it at once. */
 const typeFilter = (text: string) => {
   const field = within(settings()!).getByTestId('planner-settings-filter')
@@ -112,6 +112,32 @@ describe('the Unplanned filter line', () => {
     expect(none).toHaveTextContent(/^Nothing joins$/)
     expect(none).toHaveAttribute('data-tooltip', 'Unplanned stays empty · click to edit')
     expect(unplanned()).toEqual([])
+  })
+})
+
+describe('the Unplanned sort', () => {
+  it('ends the filter line: Manual by default, the hand order; a pick sorts Unplanned at once, one undo step', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 5, uid: 'b', title: 'Book flights', focus: true, sortOrder: 1 }),
+        makeTodo({ id: 6, uid: 'a', title: 'Answer Sam', focus: true, sortOrder: 2 }),
+      ],
+    })
+    setup()
+    expect(unplanned()).toEqual(['Book flights', 'Answer Sam'])
+    const button = within(line()).getByRole('button', { name: 'Unplanned sort: Manual' })
+    fireEvent.click(button)
+    const popover = screen.getByRole('dialog', { name: 'Sort Unplanned' })
+    // Unplanned offers a list's sorts but Planned and Completed.
+    fireEvent.click(within(popover).getByRole('button', { name: /Sort by/ }))
+    const choices = screen.getAllByRole('menuitemradio').map((m) => m.textContent ?? '')
+    expect(choices.some((c) => c.startsWith('Name'))).toBe(true)
+    expect(choices.some((c) => c.startsWith('Planned') || c.startsWith('Completed'))).toBe(false)
+    await act(async () => { fireEvent.click(screen.getAllByRole('menuitemradio').find((m) => m.textContent?.startsWith('Name'))!) })
+    expect(stored().config.unplannedSort).toEqual({ by: 'name' })
+    expect(unplanned()).toEqual(['Answer Sam', 'Book flights'])
+    expect(within(line()).getByRole('button', { name: 'Unplanned sort: Name' })).toBeInTheDocument()
+    expect(layoutSteps()).toEqual(['Sorted Unplanned by Name'])
   })
 })
 

@@ -195,7 +195,7 @@ What it reviews is **a filter typed into its field** (`ReviewFilterField`).
 - `setReviewFilter(tabId, filter | null)` writes it as a `ReviewFilter`, `{ expression, showCompleted }`. A write also drops the filters of tabs in no layout any more, and their reviews (`review-session.keepReviewSessions`); the popup review's, under `REVIEW_POPUP_TAB_ID`, is never dropped so.
 - A text that doesn't read shows the expression field's error under the field and is never written. The queue keeps the last filter that read.
 - Esc puts its text back. With nothing to put back, Esc leaves the field.
-- A × clears it. A filter that narrows by nothing (a jump from such a list) reads `Every open task` there, with the ×.
+- The funnel at the field's start (`ClearFunnel`) clears it: red while the field holds something, dim while empty. A filter that narrows by nothing (a jump from such a list) reads `Every open task` there, with the funnel red. Each pill keeps its own × to take out one term.
 
 ### The list and picks
 

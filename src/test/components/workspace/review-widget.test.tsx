@@ -227,10 +227,10 @@ describe('the Review widget: its field', () => {
     expect(field()).toHaveAttribute('placeholder', 'Who or what to review…')
     fireEvent.blur(field())
     expect(stored()?.expression).toEqual({ kind: 'and', items: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the review filter' }))
     expect(stored()).toBeUndefined()
     expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
-    expect(screen.queryByRole('button', { name: 'Clear the filter' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Clear the review filter' })).toBeDisabled()
   })
 
   it('bare letters match people, tags and statuses at once; ⏎ takes the first', () => {
@@ -271,7 +271,7 @@ describe('the Review widget: its field', () => {
   it('× clears the field and the filter', () => {
     renderAt('medium')
     setFilter(person(1))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the review filter' }))
     expect(field()).toHaveValue('')
     expect(stored()).toBeUndefined()
     expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
@@ -288,7 +288,7 @@ describe('the Review widget: its field', () => {
     fireEvent.click(field())
     fireEvent.mouseDown(screen.getByRole('option', { name: /Aisha/ }))
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the review filter' }))
     expect(patchConfig).not.toHaveBeenCalled()
     expect(patchView).not.toHaveBeenCalled()
   })

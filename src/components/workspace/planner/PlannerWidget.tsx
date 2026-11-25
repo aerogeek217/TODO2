@@ -301,7 +301,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
           data={data}
           mobile={isMobile}
           drag={drag}
-          under={<PlannerFilterLine tabId={tabId} filter={unplannedFilter} />}
+          under={<PlannerFilterLine tabId={tabId} filter={unplannedFilter} sort={tab.config.unplannedSort} />}
           empty={<p className={styles.emptyLine} role="status">Nothing unplanned</p>}
         />
       )}
@@ -363,7 +363,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
                 delayed={view.delayed.tasks.length}
                 unplanned={view.unplanned.tasks.length}
                 marked={drag.mark?.key === view.unplanned.key}
-                filter={<PlannerFilterLine tabId={tabId} filter={unplannedFilter} />}
+                filter={<PlannerFilterLine tabId={tabId} filter={unplannedFilter} sort={tab.config.unplannedSort} />}
               />
             ) : (
               <PlannerDock tabId={tabId} share={tab.viewState?.dockShare} stackRef={stackRef}>

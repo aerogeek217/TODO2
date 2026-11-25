@@ -6,7 +6,7 @@ import {
   boardTileRoom,
   boardLines,
   boardMinHeight,
-  boardTileMinWidth,
+  boardTileFit,
   layoutListTabs,
   shortcutChoices,
   shortcutLayoutName,
@@ -75,10 +75,12 @@ describe('a List board’s picked lists', () => {
     expect(shortcutLayoutName(def(2, 'Clients', 2), [work, home], home)).toBe('Work')
   })
 
-  it('the tiles: one width, the widest head’s (120px to 280px); the lines they wrap onto; the row’s least height', () => {
-    expect(boardTileMinWidth([])).toBe(120)
-    expect(boardTileMinWidth([90, 171.2, 140])).toBe(172)
-    expect(boardTileMinWidth([400])).toBe(280)
+  it('the tiles: one width, the widest head’s (64px to 280px); the lines they wrap onto; the row’s least height', () => {
+    const widthOf = (heads: number[]) => boardTileFit(heads.map((bare) => ({ bare, icon: 0 })), heads.length, 0).tileMin
+    expect(widthOf([])).toBe(64)
+    expect(widthOf([50, 90])).toBe(90)
+    expect(widthOf([90, 171.2, 140])).toBe(172)
+    expect(widthOf([400])).toBe(280)
     // 172px tiles with 8px gaps: five across 992px; six wrap onto two lines; nothing measured, one line.
     expect(boardLines(5, 992, 172)).toBe(1)
     expect(boardLines(6, 992, 172)).toBe(2)
@@ -87,6 +89,20 @@ describe('a List board’s picked lists', () => {
     // One line of heads is the lone board's least (63px); each more line adds a head and a gap.
     expect(boardMinHeight(1)).toBe(63)
     expect(boardMinHeight(3)).toBe(63 + 2 * 53)
+  })
+
+  it('the icons go, from every tile, only when that puts the tiles on fewer lines', () => {
+    // Six heads, the widest 97px with its icon, 77px without, across 520px: 97px tiles go 5 across (two lines); 77px, 6.
+    const heads = [{ bare: 77, icon: 20 }, { bare: 43, icon: 0 }, { bare: 45, icon: 0 }, { bare: 70, icon: 0 }, { bare: 30, icon: 20 }, { bare: 61, icon: 0 }]
+    expect(boardTileFit(heads, 6, 520)).toEqual({ tileMin: 77, icons: false })
+    // Wide enough for six with their icons: they keep them.
+    expect(boardTileFit(heads, 6, 640)).toEqual({ tileMin: 97, icons: true })
+    // Hiding them gains no line (two lines either way): they keep them.
+    expect(boardTileFit(heads, 6, 400)).toEqual({ tileMin: 97, icons: true })
+    // No icon is the widest's: nothing to gain.
+    expect(boardTileFit([{ bare: 90, icon: 0 }, { bare: 40, icon: 20 }], 2, 150)).toEqual({ tileMin: 90, icons: true })
+    // Unmeasured: the icons show.
+    expect(boardTileFit(heads, 6, 0)).toEqual({ tileMin: 97, icons: true })
   })
 
   it('a tile’s room: squares first (whole 12px rows, four at most), then titles in what is left', () => {

@@ -159,7 +159,7 @@ describe('RuntimeFilterPicker', () => {
     expect(onChange).toHaveBeenLastCalledWith([2])
   })
 
-  it('a × at the field’s end clears every pick at once, keeping the focus in the field', () => {
+  it('the funnel at the field’s start clears every pick at once, keeping the focus in the field', () => {
     usePersonStore.setState({
       people: [
         makePerson({ id: 1, name: 'Alice' }),
@@ -168,10 +168,12 @@ describe('RuntimeFilterPicker', () => {
       assignedPeopleMap: new Map(),
     })
     const onChange = vi.fn()
-    const { getByLabelText, rerender, queryByLabelText } = render(
+    const { getByLabelText, rerender } = render(
       <RuntimeFilterPicker spec={{ field: 'person' }} value={[1, 2]} onChange={onChange} />,
     )
     const clear = getByLabelText('Clear Person')
+    // First in the field, before the chips.
+    expect(clear.parentElement?.firstElementChild).toBe(clear)
     expect(clear.getAttribute('data-tooltip')).toBe('Clear Person')
     // Not a Tab stop, and its press doesn't take the focus.
     expect(clear.tabIndex).toBe(-1)
@@ -181,11 +183,12 @@ describe('RuntimeFilterPicker', () => {
     expect(onChange).toHaveBeenLastCalledWith([])
     expect(document.activeElement).toBe(getByLabelText(/Filter tasks by person/i))
 
-    // No picks (or only picks whose entity is gone): no ×.
+    // No picks (or only picks whose entity is gone): the funnel dim and inert, no tooltip.
     rerender(<RuntimeFilterPicker spec={{ field: 'person' }} value={[]} onChange={onChange} />)
-    expect(queryByLabelText('Clear Person')).toBeNull()
+    expect(getByLabelText('Clear Person')).toBeDisabled()
+    expect(getByLabelText('Clear Person')).not.toHaveAttribute('data-tooltip')
     rerender(<RuntimeFilterPicker spec={{ field: 'person' }} value={[99]} onChange={onChange} />)
-    expect(queryByLabelText('Clear Person')).toBeNull()
+    expect(getByLabelText('Clear Person')).toBeDisabled()
   })
 
   it('subscribes to the tag store when the spec field is "tag"', () => {

@@ -1,0 +1,35 @@
+/* A filtering field's clear (`ClearFunnel`): the top bar's funnel in a field.
+ * 24px in a 28px field's 20px line: -2px each way keeps the field's height; on its first
+ * line when the field wraps. */
+.funnel {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  align-self: flex-start;
+  margin: -2px 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+/* Nothing to clear: a press goes through to the field (its text, its caret). */
+.funnel:disabled {
+  pointer-events: none;
+}
+
+.active {
+  color: var(--color-danger);
+  opacity: 1;
+}
+
+.active:hover {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}

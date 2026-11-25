@@ -20,7 +20,7 @@ import { parseExpression, printExpression, printPieces, withoutAtom, type Expres
 import { withExpression } from '../../../utils/predicate-expression'
 import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import { NlpPopup } from '../../shared/NlpPopup'
-import { RemoveButton } from '../../shared/RemoveButton'
+import { ClearFunnel } from '../../shared/ClearFunnel'
 import { ExpressionPills } from '../../shared/filters/ExpressionPills'
 import { TintedText } from '../../shared/TintedText'
 import { useTooltip } from '../../shared/use-tooltip'
@@ -78,7 +78,8 @@ function useReviewFieldCounts(): ReviewFieldCounts {
  * takes the first; ⏎ elsewhere settles the text. A text that doesn't read
  * shows its error under the field and is never written — the queue keeps
  * the last filter that read; Esc puts that text back (and, with nothing to
- * put back, leaves the field). × clears it — also a filter that prints as
+ * put back, leaves the field). The funnel at its left (`ClearFunnel`, red
+ * while there is something) clears it — also a filter that prints as
  * nothing (a jump from a list that narrows by nothing), which the field
  * shows at rest as `Every open task`.
  *
@@ -253,6 +254,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
     <div className={styles.fieldRow} data-prompt-row="" data-testid="review-field-row">
       <div className={styles.fieldLine}>
         <div className={`${styles.field} ${error ? styles.fieldError : ''}`}>
+          <ClearFunnel active={text !== '' || everyTask} label="Clear the review filter" tooltip="Clear the filter" onClear={clear} />
           <div className={styles.fieldText}>
             {resting ? (
               // The pills size the field; the text field lies under them, unseen, taking every press but an ×'s.
@@ -301,16 +303,6 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
               onKeyDown={onKeyDown}
             />
           </div>
-          {(text !== '' || everyTask) && (
-            <RemoveButton
-              tabIndex={-1}
-              label="Clear the filter"
-              tooltip
-              // The press keeps the focus (and the caret) in the field.
-              keepFocus
-              onClick={clear}
-            />
-          )}
         </div>
         {checkinIds && <CheckinButtons personIds={checkinIds} />}
         {trailing}

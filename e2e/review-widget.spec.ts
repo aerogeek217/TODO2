@@ -198,7 +198,7 @@ test('a filter that doesn’t read: the error under the field, the queue on the 
   await expect(field).toHaveValue('@Ben')
   await expect(error).toHaveCount(0)
   // The × clears the field and the review; the focus stays in the field.
-  await w.getByRole('button', { name: 'Clear the filter' }).click()
+  await w.getByRole('button', { name: 'Clear the review filter' }).click()
   await expect(field).toHaveValue('')
   await expect(field).toBeFocused()
   await expect(w.getByTestId('review-empty')).toContainText('Pick who or what to review')
