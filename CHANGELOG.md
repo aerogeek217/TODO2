@@ -20,8 +20,15 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-25
+
 ### Changed
 
+- **A larger clear at the start of the Review box** and of a list's "Pick a person" field: the top bar's funnel,
+  red while the field holds something; a click clears it. It replaces the small × at the field's end. The × on each
+  name in these fields, and in the top bar's, is a little larger.
+- The top bar's tally of today's finished tasks sits at the right, just before the sync dot, instead of just after
+  the filter bar.
 - The Planner's Unplanned tray can be sorted as a list is: the sort button at the end of its filter line offers a
   list's sorts and their direction. Dragging a row within a sorted Unplanned switches it to Manual, keeping the order
   you dropped.
