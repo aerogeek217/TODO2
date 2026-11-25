@@ -1,4 +1,5 @@
-import { WEEK_LOAD_KINDS, type WeekLoad, type WeekLoadCounts, type WeekLoadDay, type WeekLoadKind, type WeekLoadWeek } from '../../../services/stats/week-load'
+import { WEEK_LOAD_KINDS, type WeekLoad, type WeekLoadCounts, type WeekLoadDay, type WeekLoadKind, type WeekLoadOutcome, type WeekLoadWeek } from '../../../services/stats/week-load'
+import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
 import { addDays } from '../../../utils/calendar-grid'
 import { formatDateWith } from '../../../utils/date'
 import { plannerDayLabel, plannerRangeLabel } from '../../../utils/planner'
@@ -154,4 +155,59 @@ export function chartScale(load: WeekLoad): number {
   for (const w of load.weeks) for (const d of w.days) max = Math.max(max, dayTotal(d))
   for (const share of load.usual.weekdayShares) max = Math.max(max, Math.ceil(load.usual.perWeek * share))
   return max
+}
+
+/** A box's two parts: what was done (its filled bottom), and the rest — slipped on a day gone by, still ahead to come. */
+export type WeekLoadPart = 'done' | 'rest'
+
+const KIND_TITLE: Readonly<Record<WeekLoadKind, string>> = { due: 'Due', followup: 'Follow-up', planned: 'Planned' }
+
+/** The rest's headings, in order: how each slipped, then what is still ahead. */
+const REST_GROUPS: ReadonlyArray<{ outcome: Exclude<WeekLoadOutcome, 'done'>; label: string }> = [
+  { outcome: 'late', label: 'Late' },
+  { outcome: 'moved', label: 'Moved' },
+  { outcome: 'removed', label: 'Removed' },
+  { outcome: 'ahead', label: 'Ahead' },
+]
+
+/** How many dates a box's part holds. */
+export function partCount(c: WeekLoadCounts, part: WeekLoadPart): number {
+  return part === 'done' ? c.done : c.late + c.moved + c.removed + c.ahead
+}
+
+/**
+ * A box's part in words, its name and tooltip: `Wed, Nov 25 · 2 due done`, `Wed, Nov 25 · 3 due slipped: 1 late,
+ * 2 moved`, `Fri, Nov 27 · 2 follow-up ahead`.
+ */
+export function partWords(day: WeekLoadDay, kind: WeekLoadKind, part: WeekLoadPart): string {
+  const c = day.kinds[kind]
+  const head = `${plannerDayLabel(day.date)} · ${partCount(c, part)} ${WEEK_LOAD_KIND_NAME[kind]}`
+  if (part === 'done') return `${head} done`
+  if (!c.late && !c.moved && !c.removed) return `${head} ahead`
+  const bits = REST_GROUPS.flatMap(({ outcome, label }) => (c[outcome] ? [`${c[outcome]} ${label.toLowerCase()}`] : []))
+  return `${head}: ${bits.join(', ')}`
+}
+
+/** The task dialog for a box's part: its tasks — the rest under Late, Moved, Removed and Ahead. */
+export function weekLoadDrill(day: WeekLoadDay, kind: WeekLoadKind, part: WeekLoadPart): TaskDialogPayload {
+  const ids = day.taskIds[kind]
+  const dayWord = plannerDayLabel(day.date)
+  const dates = `${WEEK_LOAD_KIND_NAME[kind]} dates on ${dayWord}`
+  const title = `${KIND_TITLE[kind]} · ${dayWord}`
+  if (part === 'done') {
+    return { title, glyph: 'done', description: `Tasks whose ${dates} were kept.`, source: { kind: 'todos', todoIds: [...ids.done] } }
+  }
+  const description = day.when === 'future'
+    ? `Tasks whose ${dates} are still ahead.`
+    : day.when === 'today' ? `Tasks whose ${dates} slipped so far, or are still ahead.` : `Tasks whose ${dates} slipped.`
+  return {
+    title,
+    glyph: 'chart',
+    description,
+    source: {
+      kind: 'groups',
+      groups: REST_GROUPS.filter(({ outcome }) => ids[outcome].length > 0)
+        .map(({ outcome, label }) => ({ key: outcome, label, todoIds: [...ids[outcome]] })),
+    },
+  }
 }

@@ -16,8 +16,13 @@ import styles from './WeekLoad.module.css'
  * the screen filter (`useWeekLoad`), and draws nothing until the events are
  * read. A widget too narrow for it drops it before Reset plan's words
  * (`WeekLoad.module.css`).
+ *
+ * `bar`: the same meter as a slim bar across the top of the Planner's body,
+ * its track as wide as the widget, for a Planner whose top line has no room
+ * for it — a cell of tabs, the widget popup, the phone, or a widget 540px
+ * wide or less (`alone`: shown only at that width).
  */
-export function WeekLoadMeter() {
+export function WeekLoadMeter({ bar = false, alone = false }: { bar?: boolean; alone?: boolean } = {}) {
   const load = useWeekLoad()
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
@@ -32,12 +37,13 @@ export function WeekLoadMeter() {
       <button
         ref={ref}
         type="button"
-        className={styles.meter}
+        className={bar ? styles.meterRow : styles.meter}
+        data-alone={bar && alone ? '' : undefined}
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
         data-tooltip={label}
-        data-week-load-meter=""
+        {...(bar ? { 'data-week-load-bar': '' } : { 'data-week-load-meter': '' })}
         onClick={() => setOpen((v) => !v)}
       >
         <span className={styles.meterBar} aria-hidden="true">
@@ -52,7 +58,7 @@ export function WeekLoadMeter() {
           {week.totals.load}<span className={styles.meterUsual}> / {usual}</span>
         </span>
       </button>
-      {open && <WeekLoadPopover load={load} anchorRef={ref} placement="bottom-end" onClose={() => setOpen(false)} />}
+      {open && <WeekLoadPopover load={load} anchorRef={ref} placement={bar ? 'bottom-start' : 'bottom-end'} onClose={() => setOpen(false)} />}
     </>
   )
 }

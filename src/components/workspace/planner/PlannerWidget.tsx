@@ -104,8 +104,8 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
 /**
  * The Planner (widget kind `planner`; its one setting the Unplanned filter): a scratch pad for
  * today and the week ahead. Its top line (alone in its cell): the name,
- * the window's range, the week load meter (`WeekLoadMeter`; Week load… in
- * the widget's ⋯ elsewhere) and **Reset plan** (`PlannerResetButton`; in a
+ * the window's range, the week load meter (`WeekLoadMeter`; elsewhere, and
+ * in a widget too narrow for it, a slim bar across the top of the body) and **Reset plan** (`PlannerResetButton`; in a
  * cell of tabs the same three choices are under Reset plan › in the widget's ⋯).
  * Large — the strip of seven day tiles (`PlannerStrip`), then two panes:
  * on the left **one scrolling list of days** — Today (its rows, an `N
@@ -332,6 +332,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
           <WeekLoadMeter />
           <PlannerResetButton tab={tab} />
         </WidgetNameLine>
+        <WeekLoadMeter bar alone={alone} />
         {(tiles || !alone) && (
           <PlannerStrip
             tabId={tabId}

@@ -59,7 +59,7 @@ test.describe('the week load meter and popover', () => {
     expect(Math.abs(p.x + p.width - (m.x + m.width))).toBeLessThan(1)
     await expect(popover(page).locator('[data-popover-caret="top"]')).toHaveCount(1)
     // Seven day columns, ~120px tall.
-    const columns = popover(page).getByRole('img')
+    const columns = popover(page).getByRole('group')
     await expect(columns).toHaveCount(7)
     const barsHeight = await columns.first().evaluate((day) => day.lastElementChild?.getBoundingClientRect().height)
     expect(barsHeight).toBe(120)
@@ -94,6 +94,13 @@ test.describe('the week load meter and popover', () => {
     expect(width).toBeGreaterThan(421)
     expect(width).toBeLessThanOrEqual(540)
     await expect(meter(page)).toBeHidden()
+    // In its place, the slim bar across the top of the body, opening the popover under it.
+    const bar = planner(page).locator('[data-week-load-bar]')
+    await expect(bar).toBeVisible()
+    await bar.click()
+    await expect(popover(page)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(bar).toBeFocused()
     const reset = planner(page).getByTestId('planner-reset')
     await expect(reset).toBeVisible()
     await expect(reset).toHaveText('Reset plan')
@@ -120,7 +127,20 @@ test.describe('the week load meter and popover', () => {
     const width = (await box(planner(page))).width
     expect(width).toBeGreaterThan(541)
     await expect(meter(page)).toBeVisible()
+    // The line's meter is there, so no bar.
+    await expect(planner(page).locator('[data-week-load-bar]')).toBeHidden()
     const overflows = await page.locator('[data-planner="plan"] [data-widget-top-line]').evaluate((el) => el.scrollWidth > el.clientWidth + 1)
     expect(overflows).toBe(false)
+  })
+
+  test('a box’s part opens the task dialog on its tasks, and the popover closes', async ({ page }) => {
+    await seedWorkspace(page, layout({}))
+    await meter(page).click()
+    const part = popover(page).locator('[data-week-load-part]').first()
+    const name = await part.getAttribute('aria-label')
+    await part.click()
+    await expect(popover(page)).toHaveCount(0)
+    const dialog = page.getByRole('dialog').filter({ hasText: name?.split(' · ')[0] ?? '' })
+    await expect(dialog).toBeVisible()
   })
 })

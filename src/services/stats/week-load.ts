@@ -64,6 +64,8 @@ export interface WeekLoadDay {
   /** Gone by, today (done so far, the rest ahead) or to come (all ahead). */
   when: 'past' | 'today' | 'future'
   kinds: Record<WeekLoadKind, WeekLoadCounts>
+  /** The tasks behind each count: `taskIds[kind][outcome]` holds as many ids as `kinds[kind][outcome]` counts. */
+  taskIds: Record<WeekLoadKind, Record<WeekLoadOutcome, readonly number[]>>
 }
 
 interface WeekLoadTotals {
@@ -127,7 +129,9 @@ interface WeekLoadInput {
 /** The event types the week load replays. */
 const WEEK_LOAD_EVENT_TYPES: readonly TodoEventType[] = ['created', 'completed', 'reopened', 'deadline', 'followup', 'followedUp', 'planned']
 
-type Outcome = keyof WeekLoadCounts
+/** What became of a landing: a key of `WeekLoadCounts`. */
+export type WeekLoadOutcome = keyof WeekLoadCounts
+type Outcome = WeekLoadOutcome
 
 interface Placed {
   day: number
@@ -163,6 +167,10 @@ function dateOf(v: string | number | null): Date | null {
   if (typeof v !== 'string') return null
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? null : d
+}
+
+function emptyIds(): Record<Outcome, number[]> {
+  return { done: [], late: [], moved: [], removed: [], ahead: [] }
 }
 
 function emptyCounts(): WeekLoadCounts {
@@ -294,9 +302,13 @@ export function computeWeekLoad(input: WeekLoadInput): WeekLoad {
   const counts: Record<WeekLoadKind, WeekLoadCounts>[] = Array.from({ length: dayCount }, () => ({
     due: emptyCounts(), followup: emptyCounts(), planned: emptyCounts(),
   }))
-  const add = (day: number, kind: WeekLoadKind, outcome: Outcome) => {
+  const ids: Record<WeekLoadKind, Record<Outcome, number[]>>[] = Array.from({ length: dayCount }, () => ({
+    due: emptyIds(), followup: emptyIds(), planned: emptyIds(),
+  }))
+  const add = (day: number, kind: WeekLoadKind, outcome: Outcome, taskId: number) => {
     const c = counts[day]
     if (c) c[kind][outcome] += 1
+    ids[day]?.[kind][outcome].push(taskId)
   }
   const dayStarts = Array.from({ length: dayCount + 1 }, (_, i) => addDays(origin, i).getTime())
   const completionDays: number[] = []
@@ -327,12 +339,12 @@ export function computeWeekLoad(input: WeekLoadInput): WeekLoad {
         const placed = f?.state === 'open' ? plannerDayOf(f, mode, origin) : null
         if (placed?.day === d) landing = { time, kind: placed.kind }
       }
-      if (landing) add(d, landing.kind, outcomeOf(t, landing, d, dayEnd, mode, origin, d === todayIndex))
+      if (landing) add(d, landing.kind, outcomeOf(t, landing, d, dayEnd, mode, origin, d === todayIndex), task.id)
     }
     // Days to come: the task's dates now.
     if (!task.isCompleted) {
       const placed = plannerDayOf({ dueDate: task.dueDate ?? null, nextFollowupAt: task.nextFollowupAt ?? null, doDate: task.doDate ?? null }, ALL_DATES, origin)
-      if (placed && placed.day > todayIndex) add(placed.day, placed.kind, 'ahead')
+      if (placed && placed.day > todayIndex) add(placed.day, placed.kind, 'ahead', task.id)
     }
   }
 
@@ -357,7 +369,8 @@ export function computeWeekLoad(input: WeekLoadInput): WeekLoad {
         if (d < planDay) beforePlans = true
         if (d < historyDay) beforeHistory = true
       }
-      days.push({ date: addDays(origin, d), when: d < todayIndex ? 'past' : d === todayIndex ? 'today' : 'future', kinds })
+      const taskIds = ids[d] ?? { due: emptyIds(), followup: emptyIds(), planned: emptyIds() }
+      days.push({ date: addDays(origin, d), when: d < todayIndex ? 'past' : d === todayIndex ? 'today' : 'future', kinds, taskIds })
     }
     totals.slipped = totals.late + totals.moved + totals.removed
     totals.load = totals.done + totals.slipped + totals.ahead

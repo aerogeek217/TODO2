@@ -43,6 +43,55 @@
   }
 }
 
+/*
+ * The meter as a slim bar across the top of the Planner's body: where its top line has no room for the meter (a cell
+ * of tabs, the popup, the phone — always; alone in its cell, only at 540px or less, as the line's meter goes).
+ */
+.meterRow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  margin: 2px 8px 4px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.meterRow:hover {
+  background: var(--color-tint-5);
+}
+
+.meterRow[aria-expanded='true'] {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+}
+
+.meterRow[aria-expanded='true']:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
+}
+
+.meterRow .meterBar {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.meterRow[data-alone] {
+  display: none;
+}
+
+@container (max-width: 540px) {
+  .meterRow[data-alone] {
+    display: flex;
+  }
+}
+
 /* The bar: this week's dates in the kinds' solid colors, on a faint track, the usual week's dashed mark over it. */
 .meterBar {
   position: relative;
@@ -242,18 +291,52 @@
   height: 120px;
 }
 
-/* Outlined in its kind's color, filled from the bottom as far as its dates were done: a progress bar. */
+/*
+ * Outlined in its kind's color, filled from the bottom as far as its dates were done: a progress bar. Its two parts
+ * are buttons — the filled part and the rest —, each opening the task dialog on its tasks.
+ */
 .box {
-  display: block;
+  display: flex;
+  flex-direction: column-reverse;
   flex: none;
   min-height: 2px;
   border-radius: 2px;
-  background: linear-gradient(to top, var(--c) var(--p), transparent var(--p));
   box-shadow: inset 0 0 0 1.5px var(--c);
+  overflow: hidden;
+}
+
+.partDone,
+.partRest {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.partDone {
+  background: var(--c);
+}
+
+.partDone:hover {
+  filter: brightness(1.2);
+}
+
+.partRest:hover {
+  background: color-mix(in srgb, var(--c) 28%, transparent);
+}
+
+.partDone:focus-visible,
+.partRest:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .usualMark {
   position: absolute;
+  pointer-events: none;
   left: -3px;
   right: -3px;
   height: 0;

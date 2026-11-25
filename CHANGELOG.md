@@ -24,12 +24,18 @@ History before 2026-11-19 is in the git log.
 
 - **Right-click a task in a review** for the task menu: a row of the queue, or the card's title row. It acts on
   that one task.
+- **See the tasks behind the week load chart.** Click the filled or empty part of a day's box to list its tasks:
+  the dates that were kept, or those that slipped (late, moved or removed) or are still ahead.
 
 ### Changed
 
 - **A widget's icon is the one it has, everywhere.** A tab with no icon now shows none in its tab strip and popup, as
   the List board already did, instead of a stand-in. New widgets are given their kind's icon, which you can change or
   set to No icon in Name and icon…; the List board now shows a list's icon even when it is the plain list icon.
+- **The week load meter is in every Planner.** Where the Planner's top line has no room for it (a cell of tabs, the
+  widget popup, the phone, a narrow widget), it is a slim bar across the top of the Planner.
+- **Narrower List board tiles.** A tile no longer shows its task count (it is in its tooltip and its squares), and
+  its due and follow-up counts sit as a badge on its top corner, so a tile is only as wide as its name needs.
 
 ## 2026-11-24
 
