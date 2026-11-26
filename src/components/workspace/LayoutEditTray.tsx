@@ -18,8 +18,9 @@ import styles from './LayoutEditTray.module.css'
  * widget where the drop model says (a slot takes it, a card's middle or tab
  * strip adds it as a tab, a card's edge splits it, the layout's edge
  * inserts a row or column; the ghost says which — `beginNewWidgetDrag`); a
- * click adds it to the selected slot or card. It scrolls sideways when the
- * bar is narrow, never pushing the bar's buttons out. While a tap armed a
+ * click adds it to the selected slot or card. Its chips scroll sideways when
+ * the bar is narrow, never pushing the bar's buttons out; More › stays
+ * whole after them. While a tap armed a
  * card's move it gives way to the move's hint (Esc cancels it).
  */
 
@@ -124,30 +125,36 @@ export function LayoutEditTray() {
     icon: <WidgetKindIcon kind={kind} />,
     onSelect: () => addToSelected(kind),
   }))
+  const chips = armed == null && !incoming && previewHint == null
   return (
     <div className={styles.tray} role="group" aria-label="Widgets">
-      <span role="status" className={styles.status}>
-        {previewHint != null && <span className={styles.hint} data-testid="layout-edit-preview-hint">{previewHint}</span>}
-        {previewHint == null && armed != null && <MoveHint cellId={armed} />}
-        {previewHint == null && incoming && <IncomingHint incoming={incoming} placed={placed} />}
-      </span>
-      {armed == null && !incoming && previewHint == null && (
-        <>
-          <span className={styles.caption} aria-hidden="true">Add</span>
-          {COMMON_KINDS.map((kind) => <TrayChip key={kind} kind={kind} />)}
-          <button
-            ref={moreRef}
-            type="button"
-            className={styles.chip}
-            aria-haspopup="menu"
-            aria-expanded={more}
-            data-tooltip="More widgets"
-            onClick={() => setMore((m) => !m)}
-          >
-            <span>More</span>
-            <ChevronDownIcon size={12} />
-          </button>
-        </>
+      {/* The chips scroll sideways in a narrow bar; More › stays outside the scroller, never clipped. */}
+      <div className={styles.scroller} data-tray-scroller="">
+        <span role="status" className={styles.status}>
+          {previewHint != null && <span className={styles.hint} data-testid="layout-edit-preview-hint">{previewHint}</span>}
+          {previewHint == null && armed != null && <MoveHint cellId={armed} />}
+          {previewHint == null && incoming && <IncomingHint incoming={incoming} placed={placed} />}
+        </span>
+        {chips && (
+          <>
+            <span className={styles.caption} aria-hidden="true">Add</span>
+            {COMMON_KINDS.map((kind) => <TrayChip key={kind} kind={kind} />)}
+          </>
+        )}
+      </div>
+      {chips && (
+        <button
+          ref={moreRef}
+          type="button"
+          className={styles.chip}
+          aria-haspopup="menu"
+          aria-expanded={more}
+          data-tooltip="More widgets"
+          onClick={() => setMore((m) => !m)}
+        >
+          <span>More</span>
+          <ChevronDownIcon size={12} />
+        </button>
       )}
       {more && (
         <MenuPopover anchorRef={moreRef} placement="bottom-start" width={220} label="More widgets" entries={moreEntries} onClose={() => setMore(false)} />

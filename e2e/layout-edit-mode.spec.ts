@@ -147,3 +147,23 @@ test('a layout switch with changes asks: Keep editing stays, Save stores and swi
   await expect.poll(() => storedCells(page, 'Main')).toBe(3)
   await expect(wsCell(page, 'Second-a')).toBeVisible()
 })
+
+test('in a narrow bar the tray’s chips scroll sideways and More › stays whole after them', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 800 })
+  await seedWorkspace(page, { layouts: [notesCalendar('Main'), notesCalendar('Second'), notesCalendar('Third')] })
+  await enterLayoutEdit(page)
+  const tray = bar(page).locator('[data-layout-edit-tray]')
+  const scroller = tray.locator('[data-tray-scroller]')
+  // The chips don't all fit: they scroll.
+  expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+  const more = tray.getByRole('button', { name: 'More', exact: true })
+  const m = await more.boundingBox()
+  const t = await tray.boundingBox()
+  if (!m || !t) throw new Error('no box')
+  // More sits whole inside the tray's slot, outside the scroller.
+  expect(m.x).toBeGreaterThanOrEqual(t.x)
+  expect(m.x + m.width).toBeLessThanOrEqual(t.x + t.width + 0.5)
+  expect(await more.evaluate((el) => el.closest('[data-tray-scroller]') == null)).toBe(true)
+  await more.click()
+  await expect(page.getByRole('menu', { name: 'More widgets' })).toBeVisible()
+})

@@ -211,3 +211,50 @@ test('a Numbers row that fits its content keeps its height in the mode', async (
   await expect(page.getByRole('button', { name: 'Row 3 options' })).toBeVisible()
   expect(await numberHeights()).toEqual(before)
 })
+
+/** Where a row header's mark sits: wholly inside its header, or wholly past its edge (hidden), never cut. */
+async function markPlace(ruler: Locator): Promise<'shown' | 'hidden'> {
+  const { r, n } = await ruler.evaluate((el) => {
+    const note = el.querySelector('small')
+    if (!note) throw new Error('no mark')
+    const box = (e: Element) => { const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom } }
+    return { r: box(el), n: { ...box(note), cut: note.scrollHeight > note.clientHeight + 0.5 } }
+  })
+  if (n.left >= r.right - 0.5) return 'hidden'
+  expect(n.cut, 'the mark is not cut short').toBe(false)
+  expect(n.right).toBeLessThanOrEqual(r.right + 0.5)
+  expect(n.top).toBeGreaterThanOrEqual(r.top - 0.5)
+  expect(n.bottom).toBeLessThanOrEqual(r.bottom + 0.5)
+  return 'shown'
+}
+
+test('a row header’s mark shows whole where it fits and is hidden where it doesn’t, never cut mid-word', async ({ page }) => {
+  const number = (id: string, metric: string) => ({ id, kind: 'number' as const, glance: { metric } })
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['n1 n2', 'a b', 'c c'],
+        rows: [1000, 1000, { collapsed: true }],
+        cells: [
+          { id: 'n1', tabs: [number('num1', 'open')] },
+          { id: 'n2', tabs: [number('num2', 'overdue')] },
+          { id: 'a', tabs: [{ id: 'notesA', kind: 'notes' }] },
+          { id: 'b', tabs: [{ id: 'calTab', kind: 'calendar' }] },
+          { id: 'c', tabs: [{ id: 'notesC', kind: 'notes' }] },
+        ],
+      },
+    }],
+  })
+  await enterLayoutEdit(page)
+  const fit = page.getByRole('button', { name: 'Row 1 options' })
+  const folded = page.getByRole('button', { name: 'Row 3 options' })
+  await expect(fit).toContainText('fit')
+  await expect(folded).toContainText('folded')
+  // The Numbers row (58px) has room for its number and `FIT`.
+  expect(await markPlace(fit)).toBe('shown')
+  // The folded row is a strip's height: `FOLDED` doesn't fit beside its number, so it is hidden whole.
+  expect((await boxOf(folded)).height).toBeLessThan(60)
+  expect(await markPlace(folded)).toBe('hidden')
+  await expect(folded.locator('span').first()).toHaveText('3')
+})

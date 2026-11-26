@@ -87,7 +87,7 @@ Everything that reads the table's geometry measures it — the dividers, `measur
 
 `LayoutRulers` draws the **headers** in the frame, over its rules in `utils/layout-rulers`: A, B, C… over the columns, 1, 2, 3… beside the rows. They are grid items of the table drawn into its padding, so they scroll with it and no track makes room for them.
 
-- A column's share shows on its header's hover (a percent of the weighted columns, a fixed one's px). A row is marked `fit` / `folded`.
+- A column's share shows on its header's hover (a percent of the weighted columns, a fixed one's px). A row is marked `fit` / `folded`: a mark too long for its row under the number wraps out of the header, hidden whole rather than cut.
 - The selected card's columns and rows are lit (`data-lit`).
 - Each is a button (`Column B options`) opening its menu.
 - A row header takes no part in sizing its row (`contain: size`), so a fit row keeps its height.
@@ -110,7 +110,8 @@ Only **major** tracks are lettered and numbered. A **sliver** is a track drawn u
 
 - Headers are Tab stops, first in the table: columns, then rows.
 - Enter / Space opens a menu; Esc closes it with the focus back on its header.
-- Every track action goes through `edit()`: a mode undo step on the draft. Even all is a size change: view state, as a divider's.
+- Insert, Remove and a sliver's Merge go through `edit()`: a mode undo step on the draft.
+- Collapse / Expand is view state, through `editView` (`setTrackCollapsed`), and Even all a size change, as a divider's: they change the draft but are no step of the mode's undo.
 
 ## The selection
 
@@ -252,7 +253,7 @@ An empty cell is a slot (`EditSlot`): dashed, named by the headers (`Empty slot 
 - It shows the common kinds as chips (List, Calendar, Notes, Number, Breakdown) and **More ›** with the rest.
 - A chip dragged onto the workspace is a new widget's drag: `workspace-drag.beginNewWidgetDrag` → the page's drag state, source `{ type: 'new', kind }`. Its own pointer-up drops it and Esc cancels it; the drop model decides and the ghost labels it.
 - A click adds the kind to the selected slot or card (`widget-hooks.addWidgetKindAt`, a Breakdown a Custom one).
-- It scrolls sideways when the bar is narrow, so the bar never overflows.
+- Its chips scroll sideways when the bar is narrow, so the bar never overflows. **More ›** stays outside the scroller, after them, so it is never cut off.
 
 Outside the mode none of this is drawn.
 
