@@ -5,7 +5,6 @@ import {
   NEGLECT_LABEL_MAX_PX,
   NEGLECT_LABEL_MIN_PX,
   NEGLECT_LABEL_WORK_MAX,
-  NEGLECT_MARK_MIN_GAP_PX,
   placeNeglectLabels,
   uncrowdedMarks,
   type LabelDot,
@@ -225,6 +224,8 @@ describe('placeNeglectLabels is bounded and places what the every-box placement 
 })
 
 describe('uncrowdedMarks: an axis mark that may give way', () => {
+  /** Under this many px between two labels, the optional mark gives way. */
+  const NEGLECT_MARK_MIN_GAP_PX = 4
   const keys = (marks: Array<{ key: string }>) => marks.map((m) => m.key)
   // The y axis: `14d late` from the top, `Today` and `+Nd` centred on theirs, `+30d` up to the bottom (11px labels).
   const y = (soonAt: number, h = 300) => [

@@ -197,14 +197,14 @@ export function placeNeglectLabels(
 }
 
 /** An axis mark's label along its axis, px in the axis: where it starts and ends. */
-export interface AxisMarkSpan {
+interface AxisMarkSpan {
   key: string
   start: number
   end: number
 }
 
 /** Under this many px between two axis marks' labels, the one that may give way does. */
-export const NEGLECT_MARK_MIN_GAP_PX = 4
+const NEGLECT_MARK_MIN_GAP_PX = 4
 
 /**
  * The axis marks to draw: all of them, but the `optional` one (the y axis's
