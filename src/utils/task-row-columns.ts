@@ -19,9 +19,10 @@
  *
  * **Only the fields a list uses** (flair P8): a field no shown row has —
  * notes, people, tags, the due date, the follow-up, the status — gets no
- * track, and its room goes to the title. The layout above is worked out for
- * the whole set, then the unused tracks are left out, so the details width
- * shrinks by them and people and tags never grow into it.
+ * track. The layout above is worked out for the whole set, then the unused
+ * tracks are left out and **the tags take their room**, so the details keep
+ * their width and more tags show. Without a tags track (unused, or removed
+ * for room) the details shrink by the unused tracks and the title takes it.
  */
 
 /**
@@ -110,6 +111,8 @@ export function defaultDetailsWidth(inner: number): number {
 const SPLIT_MIN = 56
 /** The narrowest people track; below it people is removed too. */
 const PEOPLE_MIN = 22
+/** The narrowest tags track taking the room unused tracks leave with no people beside it (the split's narrowest tags). */
+const TAGS_ALONE_MIN = SPLIT_MIN - PEOPLE_MIN
 /** The widest people track while tags share F. */
 const PEOPLE_MAX = 64
 /** People's share of F while tags share it. */
@@ -208,6 +211,13 @@ export function taskRowColumns(listWidth: number, stored?: number, used: RowFiel
   const status = used.status ? TASK_ROW.status : 0
   if (!used.people) people = 0
   if (!used.tags) tags = 0
+  // Tags take the room the unused tracks leave (the details keep their width), when they have a track —
+  // or, with no people track, when that room holds one.
+  if (used.tags && (tags > 0 || !used.people)) {
+    const others = [notes, people, usedDates, status].filter((t) => t > 0)
+    const room = details - span(others) - (others.length > 0 ? TASK_ROW.gap : 0)
+    tags = room >= TAGS_ALONE_MIN ? room : tags
+  }
   const detailTracks = [notes, people, tags, usedDates, status].filter((t) => t > 0)
   const template = [`${TASK_ROW.gutter}px`, `${TASK_ROW.checkbox}px`, 'minmax(0, 1fr)', ...detailTracks.map((t) => `${t}px`)].join(' ')
   return {
