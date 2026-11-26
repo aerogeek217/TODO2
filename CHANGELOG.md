@@ -20,6 +20,22 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Fixed
+
+- A link in a task's notes whose address holds a `*` or a backtick copies as one whole link, instead of breaking
+  where italics began.
+
+### Security
+
+- **The online version no longer loads its font from Google.** It uses the copy built into the app, as the offline
+  file does, and its security policy now lets the page load nothing from another site. It no longer tells a site
+  you follow a link to where you came from, as the offline file already didn't.
+- Notes copied or pasted no longer keep a link to another computer that names no scheme (`//host`,
+  `\\server\share`, or an address with a backslash): the link's text stays, its address is dropped. Brackets in a
+  pasted link's text no longer split it into another link.
+- Very long notes and Review filters can no longer freeze the app for seconds: the Markdown export and the Review
+  box's suggestions read them in one pass.
+
 ## 2026-11-25, second deployment
 
 ### Changed

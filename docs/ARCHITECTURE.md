@@ -11,7 +11,7 @@ This file is the always-loaded map: the stack, the layers, what lives in each fo
 - **Database**: Dexie.js over IndexedDB (local-first, no backend)
 - **Drag-and-Drop**: dnd-kit
 - **Routing**: React Router v7 data router (`createHashRouter` + `RouterProvider`; one splat route renders the shell's `<Routes>`, so `useBlocker` is available)
-- **Builds**: `npm run build` makes the online build (`vite.config.ts` → `dist/index.html`: scripts from `./assets`, CDN fonts) and the offline single file (`vite.config.offline.ts` → `dist/todo2.html`), which **makes no network request**. Each has its own content security policy. The offline build ends with an egress check that fails it on anything that loads, and ESLint bans the network APIs, navigating away and the HTML-parsing sinks in `src/`. Detail: [build-and-csp](architecture/features/build-and-csp.md)
+- **Builds**: `npm run build` makes the online build (`vite.config.ts` → `dist/index.html`: scripts and fonts from `./assets`, nothing from another host) and the offline single file (`vite.config.offline.ts` → `dist/todo2.html`), which **makes no network request**. Each has its own content security policy. The offline build ends with an egress check that fails it on anything that loads, and ESLint bans the network APIs, navigating away and the HTML-parsing sinks in `src/`. Detail: [build-and-csp](architecture/features/build-and-csp.md)
 
 ## Layers
 
