@@ -129,6 +129,20 @@ describe('Dialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('does not close on the second press of a double-click', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog open onClose={onClose} title="T">
+        <p>hi</p>
+      </Dialog>
+    )
+    const backdrop = document.querySelector('[data-dialog-backdrop]')!
+    // The first click opened the dialog; the second lands on its backdrop.
+    fireEvent.mouseDown(backdrop, { detail: 2 })
+    fireEvent.click(backdrop, { detail: 2 })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('does not close when a press inside the panel ends on the backdrop', () => {
     const onClose = vi.fn()
     render(

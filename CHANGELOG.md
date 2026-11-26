@@ -24,6 +24,7 @@ History before 2026-11-19 is in the git log.
 
 - A link in a task's notes whose address holds a `*` or a backtick copies as one whole link, instead of breaking
   where italics began.
+- Double-clicking a Planner row no longer opens its task and closes it again at once.
 
 ### Security
 

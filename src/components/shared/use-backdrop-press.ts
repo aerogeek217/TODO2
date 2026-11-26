@@ -11,14 +11,17 @@ interface BackdropPressOptions {
  * A backdrop's press handlers, the one rule for every modal backdrop
  * (`DialogFrame`, Quick Add): a press that starts and ends on the backdrop
  * itself calls `onClose`, so a text drag let go over it closes nothing. The
- * backdrop takes the click, so nothing underneath gets it.
+ * second press of a double-click (`detail >= 2`) closes nothing either: the
+ * first click may have just opened the dialog, its backdrop now under the
+ * pointer. The backdrop takes the click, so nothing underneath gets it.
  */
 export function useBackdropPress(onClose: () => void, { enabled = true, keepFocus = false }: BackdropPressOptions = {}) {
   const downOnBackdrop = useRef(false)
   return {
     onMouseDown: (e: ReactMouseEvent<HTMLElement>) => {
-      downOnBackdrop.current = e.target === e.currentTarget
-      if (keepFocus && downOnBackdrop.current) e.preventDefault()
+      const onBackdrop = e.target === e.currentTarget
+      if (keepFocus && onBackdrop) e.preventDefault()
+      downOnBackdrop.current = onBackdrop && e.detail < 2
     },
     onClick: (e: ReactMouseEvent<HTMLElement>) => {
       const pressed = downOnBackdrop.current
