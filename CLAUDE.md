@@ -9,7 +9,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - The docs have word budgets, held by `src/test/architecture/doc-budgets.test.ts`. How a feature behaves goes in its feature file; a new module gets one row in its layer table; the map changes only when a folder, a layer or a feature file does. Describe the app as it is: no plan names, dates or notes about what was removed.
 
 ## Build & Test Commands
-- Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) runs on Node 22 / ubuntu-latest (UTC): `npm ci` → `npm test` → `npm run test:shuffle` (a failing vitest run blocks the deploy; Playwright is not run there) → `npm run build`.
+- Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) runs on Node 22 / ubuntu-latest (UTC): `npm ci` → `npm test` → `npm run test:shuffle` (a failing vitest run blocks the deploy; Playwright is not run there) → `npx tsc --noEmit -p tsconfig.e2e.json` (type-checks the specs) → `npm run build`.
 - Install: `npm install`
 - Dev: `npm run dev` → http://localhost:5180
 - Build (both): `npm run build` → runs `npm run lint` first (hard gate — any lint error or warning fails the build, incl. the GitHub Pages deploy), then `dist/index.html` (online, CDN fonts) + `dist/todo2.html` (offline, single file). Verify with this, not `tsc --noEmit`.
