@@ -66,7 +66,7 @@ const ctxMemo = sharedMemo((
   statuses: StatsContext['statuses'],
 ): StatsContext => ({ today: new Date(todayMs), weekStartsOn, urgentRange, assignedPeopleMap, assignedTagsMap, statuses }))
 
-const settingsMemo = sharedMemo((urgentRange: UrgentDueWithinDays, weekStartsOn: WeekStart): FilterSettings => ({ urgentRange, weekStartsOn }))
+const settingsMemo = sharedMemo((urgentRange: UrgentDueWithinDays, weekStartsOn: WeekStart, staleAfterDays: number): FilterSettings => ({ urgentRange, weekStartsOn, staleAfterDays }))
 
 const lookupsMemo = sharedMemo((
   assignedPeopleMap: TodoNameLookups['assignedPeopleMap'],
@@ -99,10 +99,11 @@ export function useStatsBase(): StatsBase {
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const screen = useScreenFilter().filters
 
   const ctx = ctxMemo(today.getTime(), weekStartsOn, urgentRange, assignedPeopleMap, assignedTagsMap, statuses)
-  const markerSettings = settingsMemo(urgentRange, weekStartsOn)
+  const markerSettings = settingsMemo(urgentRange, weekStartsOn, staleAfterDays)
   const lookups = lookupsMemo(assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo)
   const shown = shownMemo(screen, todos, lookups, ctx, markerSettings)
   const todoById = byIdMemo(todos)

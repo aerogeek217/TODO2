@@ -62,6 +62,8 @@ const SECTIONS: SyntaxSection[] = [
       { syntax: 'followed  ·  followed any  ·  never followed', meaning: 'Last follow-up' },
       { syntax: 'created  ·  modified  ·  completed', meaning: 'Every task has the first two; completed ranges bring completed tasks in' },
       { syntax: 'overdue  ·  followup late', meaning: 'Due / next follow-up before today' },
+      { syntax: 'due soon  ·  followup soon', meaning: 'Late, or within Settings’ due-soon range' },
+      { syntax: 'stale', meaning: 'Not changed for Settings’ Stale after (off: none)' },
     ],
   },
   {

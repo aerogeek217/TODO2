@@ -43,7 +43,7 @@ function options(people: Record<number, number[]> = {}, tags: Record<number, num
       assignedPeopleMap: new Map(Object.entries(people).map(([k, ids]) => [Number(k), ids.map(person)])),
       assignedTagsMap: new Map(Object.entries(tags).map(([k, ids]) => [Number(k), ids.map(tag)])),
     }),
-    settings: { urgentRange: null, weekStartsOn: 0 },
+    settings: { urgentRange: null, weekStartsOn: 0, staleAfterDays: 30 },
   }
 }
 

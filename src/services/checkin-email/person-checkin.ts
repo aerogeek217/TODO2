@@ -73,11 +73,11 @@ interface CheckinContextSources {
 
 /** The build context, the one way (the check-in dialog builds it from its hooks). */
 export function buildCheckinContext({ todos, filterSettings, ...data }: CheckinContextSources): CheckinBuildContext {
-  const { urgentRange, weekStartsOn } = filterSettings
+  const { urgentRange, weekStartsOn, staleAfterDays } = filterSettings
   return {
     ...data,
     todos,
-    markerSettings: { urgentRange },
+    markerSettings: { urgentRange, staleAfterDays },
     weekStartsOn,
     refOf: createTaskRefLookup(todos.map((t) => t.uid)),
   }

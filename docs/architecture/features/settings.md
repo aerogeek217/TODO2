@@ -136,7 +136,7 @@ These drive [the purge notice](startup-and-data-replaces.md).
 
 ## Filter settings
 
-`currentFilterSettings()` returns `FilterSettings` (urgent range, week start) as they are now. Memoized callers use `hooks/use-filter-settings`.
+`currentFilterSettings()` returns `FilterSettings` (urgent range, week start, Stale after) as they are now. Memoized callers use `hooks/use-filter-settings`.
 
 ## Settings rows on import
 

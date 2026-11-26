@@ -20,6 +20,12 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Added
+
+- Three filter words take their days from Settings: `stale` (not changed for Settings' **Stale after**),
+  `due soon` and `followup soon` (late, or within the due-soon range). A filter using them follows Settings as you
+  change them.
+
 ### Changed
 
 - The light theme's teal is a little deeper, so white text on its buttons and chips is easier to read.

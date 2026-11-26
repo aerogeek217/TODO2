@@ -2,21 +2,27 @@ import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, typ
 import { expressionAtoms } from './filter-expression'
 import { startOfDay } from './date'
 import { isNegatableDateField } from './date-filters'
-import { resolveDateAnchor, type WeekStart } from './effective-date'
+import { daysUntil, resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
 import { admitsCompleted, composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
 import { matchesMarkerClause, type MarkerSettings } from './markers'
+import { isStale } from './stale'
+import { isDueNear } from './urgency'
 
 /**
  * The settings a filter is evaluated with: the Markers filter's (urgent
- * range) and the week start that relative date anchors resolve
- * against. `settings-store.currentFilterSettings` reads them as they are now;
- * a memoized caller passes its own subscribed copy (`useFilterSettings`) so
- * a settings change re-runs it.
+ * range, which `due soon` / `followup soon` read too), the week start that
+ * relative date anchors resolve against, and Stale after (`stale`).
+ * `settings-store.currentFilterSettings` reads them as they are now; a
+ * memoized caller passes its own subscribed copy (`useFilterSettings`) so a
+ * settings change re-runs it.
  */
 export interface FilterSettings extends MarkerSettings {
   weekStartsOn: WeekStart
+  /** Settings' Stale after, in days (`0`: off, so `stale` keeps nothing). */
+  staleAfterDays: number
 }
+
 
 /** One task as the clause matchers read it. */
 interface ClauseTask {
@@ -112,6 +118,11 @@ function matchesExpression(e: FilterExpr, t: ClauseTask): boolean {
     case 'priority': return matchesMarkerClause(t.todo, { values: [e.value] }, t.today, t.settings)
     case 'text': return matchTodoText(t.todo, e.text, t.searchCtx).matched
     case 'date': return matchesDateMatch(t.todo, e.field, e.match, t.today, t.settings.weekStartsOn)
+    case 'stale': return isStale(t.todo, t.today, t.settings.staleAfterDays)
+    case 'soon': {
+      const dueIn = daysUntil(e.field === 'deadline' ? t.todo.dueDate : t.todo.nextFollowupAt, t.today)
+      return dueIn != null && isDueNear(dueIn, t.settings.urgentRange)
+    }
   }
 }
 

@@ -38,7 +38,7 @@ function trendFilter(own: FilterCriteria, tags: Record<number, number[]> = {}): 
     lookups: lookupsFor({
       assignedTagsMap: new Map(Object.entries(tags).map(([k, ids]) => [Number(k), ids.map(tag)])),
     }),
-    settings: { urgentRange: null, weekStartsOn: 0 },
+    settings: { urgentRange: null, weekStartsOn: 0, staleAfterDays: 30 },
   }
 }
 

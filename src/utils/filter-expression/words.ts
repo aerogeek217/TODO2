@@ -19,8 +19,9 @@ import { normalizeExpression } from './tree'
  * - Everything else is a word term: a date as its Graphical chip says it
  *   (`due within the next 7 days`, `last follow-up 7+ days ago`), a named
  *   period by its name (`completed this month`), `overdue`, `follow-up
- *   late`; text as `mentions “invoice”`; the "none" choices (`unassigned`,
- *   `no tags`) and their "any" (`assigned`, `has a tag`).
+ *   late`, `due soon`, `follow-up soon`, `stale`; text as `mentions
+ *   “invoice”`; the "none" choices (`unassigned`, `no tags`) and their
+ *   "any" (`assigned`, `has a tag`).
  * - The top-level `and`'s terms are joined by ` · ` (a `not` term reads
  *   `not x`); a top-level `or` by `, or`; an `or` inside anything else is
  *   bracketed; an `and` inside an `or` joins by `and`, its `not` terms after
@@ -162,6 +163,12 @@ class Reader {
         return
       case 'date':
         this.push('word', dateWords(e.field, e.match))
+        return
+      case 'stale':
+        this.push('word', 'stale')
+        return
+      case 'soon':
+        this.push('word', e.field === 'deadline' ? 'due soon' : 'follow-up soon')
         return
       case 'and':
         this.push('joiner', '(')

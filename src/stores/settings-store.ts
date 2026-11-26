@@ -897,12 +897,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
 /**
  * The settings filters are evaluated with (urgent range, week
- * start), as they are now. A memoized caller uses `useFilterSettings`
- * instead, so a settings change re-runs it.
+ * start, Stale after), as they are now. A memoized caller uses
+ * `useFilterSettings` instead, so a settings change re-runs it.
  */
 export function currentFilterSettings(): FilterSettings {
-  const { urgentDueWithinDays, weekStartsOn } = useSettingsStore.getState()
-  return { urgentRange: urgentDueWithinDays, weekStartsOn }
+  const { urgentDueWithinDays, weekStartsOn, staleAfterDays } = useSettingsStore.getState()
+  return { urgentRange: urgentDueWithinDays, weekStartsOn, staleAfterDays }
 }
 
 /** The two settings the automatic next follow-up is read from. */

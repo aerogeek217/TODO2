@@ -1,6 +1,6 @@
 import type { FilterAtom, FilterExpr } from '../../models/filter-expression'
 import { mentionToken, quoteText, statusToken, tagToken } from '../name-tokens'
-import { dateClauseWords } from './dates'
+import { DATE_WORD, dateClauseWords } from './dates'
 
 /**
  * Writes a filter expression as text in its canonical form — what the
@@ -30,6 +30,8 @@ function atomText(a: FilterAtom, names: ExpressionNames): string {
     // A quote inside is escaped (`\"`), so the text reads back as itself.
     case 'text': return quoteText(a.text)
     case 'date': return dateClauseWords(a.field, a.match)
+    case 'stale': return 'stale'
+    case 'soon': return `${DATE_WORD[a.field]} soon`
   }
 }
 

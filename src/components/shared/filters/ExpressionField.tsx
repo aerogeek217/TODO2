@@ -213,6 +213,8 @@ function atomChip(a: FilterAtom, names: ExpressionNames): { label: string; value
     case 'priority': return { label: 'Priority', value: a.value === 'none' ? 'No priority' : MARKER_LABELS[a.value] }
     case 'text': return { label: 'Text', value: `“${a.text}”` }
     case 'date': return { label: DATE_FIELD_LABELS_SHORT[a.field], value: describeDateMatch(a.match, a.field) }
+    case 'stale': return { label: 'Modified', value: 'stale (Settings’ Stale after)' }
+    case 'soon': return { label: DATE_FIELD_LABELS_SHORT[a.field], value: 'soon or late' }
   }
 }
 

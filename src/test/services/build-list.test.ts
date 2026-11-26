@@ -727,7 +727,7 @@ describe('buildList — the screen filter narrows the groups', () => {
   // 101 work+home · 102 work · the rest untagged
   const assignedTagsMap = new Map<number, Tag[]>([[101, [WORK, HOME]], [102, [WORK]]])
   const todos = [101, 102, 103, 104, 105, 106].map((id) => makeTodo({ id }))
-  const settings = { urgentRange: null, weekStartsOn: 1 as const }
+  const settings = { urgentRange: null, weekStartsOn: 1 as const, staleAfterDays: 30 }
 
   function sections(
     grouping: 'people' | 'tag',

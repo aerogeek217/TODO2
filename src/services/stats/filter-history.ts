@@ -178,6 +178,8 @@ export function filterHistoryFields(filter: FilterCriteria | readonly FilterCrit
           case 'priority': out.add('markers').add('due'); break
           case 'text': out.add('text'); break
           case 'date': out.add(DATE_FIELD_READS[atom.field]); break
+          case 'soon': out.add(DATE_FIELD_READS[atom.field]); break
+          case 'stale': out.add('modified'); break
         }
       }
     }

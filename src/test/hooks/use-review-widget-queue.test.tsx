@@ -4,6 +4,7 @@ import { reviewFilterPredicate, useReviewWidgetQueue } from '../../hooks/use-rev
 import { emptyPredicate, type FilterExpr, type Person, type Status, type Tag } from '../../models'
 import type { ReviewFilter } from '../../stores/list-widget-store'
 import { usePersonStore } from '../../stores/person-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -101,5 +102,41 @@ describe('useReviewWidgetQueue', () => {
     const { result } = queueOf(f(or(person(1), person(2))))
     act(() => { patchScreenFilter({ tags: new Set([1]) }) })
     expect(result.current.ids).toEqual([1, 4])
+  })
+})
+
+describe('the filter words that read Settings, live', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000)
+  const inDays = (n: number) => new Date(Date.now() + n * 86_400_000)
+
+  beforeEach(() => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Old, due soon', sortOrder: 1, modifiedAt: daysAgo(20), dueDate: inDays(2) }),
+        makeTodo({ id: 2, title: 'Old, follow-up late', sortOrder: 2, modifiedAt: daysAgo(40), nextFollowupAt: daysAgo(1) }),
+        makeTodo({ id: 3, title: 'Fresh, due soon', sortOrder: 3, modifiedAt: daysAgo(1), dueDate: inDays(1) }),
+        makeTodo({ id: 4, title: 'Old, due later', sortOrder: 4, modifiedAt: daysAgo(40), dueDate: inDays(20) }),
+      ],
+    })
+  })
+
+  // Slipping, as the Neglect map's Review writes it.
+  const slipping: ReviewFilter = f(and(or({ kind: 'soon', field: 'deadline' }, { kind: 'soon', field: 'followup' }), { kind: 'stale' }))
+
+  it('a Stale after or due-soon change re-runs the queue at once', async () => {
+    await act(() => useSettingsStore.getState().setStaleAfterDays(30))
+    await act(() => useSettingsStore.getState().setUrgentDueWithinDays(3))
+    const { result } = queueOf(slipping)
+    expect(result.current.ids).toEqual([2])
+    await act(() => useSettingsStore.getState().setStaleAfterDays(14))
+    expect(result.current.ids).toEqual([1, 2])
+    await act(() => useSettingsStore.getState().setUrgentDueWithinDays(null))
+    expect(result.current.ids).toEqual([2])
+  })
+
+  it('Stale after 0 (off): `stale` keeps nothing', async () => {
+    await act(() => useSettingsStore.getState().setStaleAfterDays(0))
+    expect(queueOf(slipping).result.current.ids).toEqual([])
+    expect(queueOf(f({ kind: 'not', item: { kind: 'stale' } })).result.current.ids).toEqual([1, 2, 3, 4])
   })
 })

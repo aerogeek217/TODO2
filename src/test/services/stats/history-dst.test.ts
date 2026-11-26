@@ -37,7 +37,7 @@ function task(overrides: Partial<PersistedTodoItem> & { id: number }): Persisted
   return makeTodo({ createdAt: old, modifiedAt: old, ...overrides })
 }
 
-const options = (): FilterHistoryOptions => ({ lookups: lookupsFor(), settings: { urgentRange: null, weekStartsOn: 0 } })
+const options = (): FilterHistoryOptions => ({ lookups: lookupsFor(), settings: { urgentRange: null, weekStartsOn: 0, staleAfterDays: 30 } })
 const criteria = (patch: Partial<FilterCriteria>): FilterCriteria => ({ ...emptyFilterCriteria, ...patch })
 
 /** The counts as a line with a 1 on each of `days` (window indexes). */

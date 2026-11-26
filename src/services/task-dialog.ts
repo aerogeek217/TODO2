@@ -5,7 +5,6 @@ import { admitsCompleted, completedAdmitters, countActiveFilters, predicateToCri
 import { createPredicateEvaluator, createScreenComposedEvaluator, matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
-import type { MarkerSettings } from '../utils/markers'
 import { startOfToday } from '../utils/date'
 import { tasksDoneToday } from '../utils/tally'
 import { countTabBadges, inTabBadgeRange, type TabBadgeCounts } from '../utils/tab-badges'
@@ -47,7 +46,8 @@ export interface TaskDialogEnv {
   todos: readonly PersistedTodoItem[]
   today: Date
   weekStartsOn: WeekStart
-  markerSettings: MarkerSettings
+  /** The filter settings but the week start (urgent range, Stale after). */
+  markerSettings: Omit<FilterSettings, 'weekStartsOn'>
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
   people: Person[]

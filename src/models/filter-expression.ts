@@ -29,6 +29,13 @@ export type FilterAtom =
   | { kind: 'priority'; value: MarkerValue }
   | { kind: 'text'; text: string }
   | { kind: 'date'; field: DateField; match: DateMatch }
+  /** `stale`: an open task untouched for Settings' Stale after (`utils/stale`; off: none). */
+  | { kind: 'stale' }
+  /** `due soon` / `followup soon`: that date late or within Settings' due-soon range (`urgentDueWithinDays`). */
+  | { kind: 'soon'; field: SoonField }
+
+/** The dates `soon` goes with. */
+type SoonField = 'deadline' | 'followup'
 
 /** The atoms that name an entity by id. */
 export type IdAtomKind = 'person' | 'tag' | 'status'

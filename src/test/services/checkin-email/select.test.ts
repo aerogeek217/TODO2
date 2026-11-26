@@ -38,7 +38,7 @@ function context(
     statuses: [],
     statusUpdatesByTodo: new Map(),
     subtasksByTodo: new Map(),
-    markerSettings: { urgentRange: 3 },
+    markerSettings: { urgentRange: 3, staleAfterDays: 30 },
     weekStartsOn: 1,
     ...extra,
   }
@@ -115,7 +115,7 @@ describe('selectCheckinTasks', () => {
     const hot = filter({ markers: [{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }] })
     const out = selectCheckinTasks(ada, hot, context(todos, people))
     expect([...ids(out.overdue), ...ids(out.comingUp)].sort()).toEqual([1, 2, 4])
-    const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1 } })
+    const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1, staleAfterDays: 30 } })
     expect([...ids(selectCheckinTasks(ada, hot, narrowRange).comingUp)].sort()).toEqual([1, 2])
   })
 

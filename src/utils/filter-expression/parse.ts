@@ -45,8 +45,10 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  *   comparison with a day (`<` `<=` `>` `>=` `=`: `due <= fri`, `followup >=
  *   +7d`; `<` / `>` step to the day before / after, `= this week` is the
  *   period), `a..b`, `within [last] N days`; `no due`, `no followup`, `never
- *   followed`, `overdue`, `followup late`. The older words `before` / `by` /
+ *   followed`, `overdue`, `followup late`, `due soon`, `followup soon` (late
+ *   or within Settings' due-soon range). The older words `before` / `by` /
  *   `after` / `from` a day still read (as `<` / `<=` / `>` / `>=`);
+ * - `stale` — untouched for Settings' Stale after;
  * - a day: `today`, `tomorrow`, `yesterday`, `+3d` / `-30d` (days from
  *   today), `fri`, `next fri`, `11/30`, `start of next week`, and the older
  *   `in 3 days` / `3 days ago`;
@@ -203,7 +205,7 @@ function lex(text: string): Lex[] {
 // ── Parser ──────────────────────────────────────────────────────────────────
 
 /** Words that end a text phrase: they start a term or join terms. */
-export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
+export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'stale', 'done', ...DATE_WORDS.keys()])
 
 const PRIORITIES: ReadonlyMap<string, MarkerKey> = new Map([['urgent', 'urgent'], ['important', 'important'], ['focus', 'focus']])
 
@@ -453,6 +455,10 @@ class Parser {
       this.span(t, 'due')
       return { kind: 'date', field: 'deadline', match: BEFORE_TODAY }
     }
+    if (w === 'stale') {
+      this.span(t, 'date')
+      return { kind: 'stale' }
+    }
     if (w === 'no') return this.noTerm(t)
     if (w === 'any') return this.anyTerm(t)
     if (w === 'never') {
@@ -549,6 +555,11 @@ class Parser {
   private dateTerm(t: Lex, field: DateField): FilterExpr {
     if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'This filter takes open tasks only')
     const kind = dateSpanKind(field)
+    if ((field === 'deadline' || field === 'followup') && this.isWord('soon')) {
+      const soon = this.next()
+      this.span({ start: t.start, end: soon?.end ?? t.end }, kind)
+      return { kind: 'soon', field }
+    }
     const startPos = this.pos
     const match = this.when(t, field)
     const last = this.tokens[this.pos - 1]
@@ -577,6 +588,7 @@ class Parser {
       this.next()
       return { match: w === 'any' ? 'set' : 'unset' }
     }
+    if (w === 'soon') fail(t.start, t.end, 'soon goes with due or followup', 'due soon, followup soon')
     if (w === 'late') {
       if (field !== 'followup') fail(t.start, t.end, 'late goes with followup', 'followup late')
       this.next()

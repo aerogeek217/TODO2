@@ -21,7 +21,7 @@ import { statsFilter } from './stats-context'
 export function numberOrderField(filter: FilterCriteria): { field: TodoSortDateField; descending: boolean } {
   if (admitsCompleted(filter)) return { field: 'completed', descending: true }
   const reads = new Set<string>(Object.entries(filter.dates).flatMap(([field, m]) => (m != null ? [field] : [])))
-  if (filter.expression) for (const a of expressionAtoms(filter.expression)) if (a.kind === 'date') reads.add(a.field)
+  if (filter.expression) for (const a of expressionAtoms(filter.expression)) if (a.kind === 'date' || a.kind === 'soon') reads.add(a.field)
   return reads.has('followup') && !reads.has('deadline') ? { field: 'followup', descending: false } : { field: 'deadline', descending: false }
 }
 

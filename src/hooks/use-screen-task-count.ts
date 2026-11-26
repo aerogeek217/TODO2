@@ -25,15 +25,15 @@ export function useScreenTaskCounts(): ScreenTaskCounts {
   const statuses = useStatusStore((s) => s.statuses)
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
-  const { urgentRange, weekStartsOn } = useFilterSettings()
+  const { urgentRange, weekStartsOn, staleAfterDays } = useFilterSettings()
   const today = useToday()
   const badgeRanges = useSettingsStore((s) => s.tabBadges)
   return useMemo(
     () => screenTaskCounts({
       todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn,
-      markerSettings: { urgentRange },
+      markerSettings: { urgentRange, staleAfterDays },
     }, badgeRanges),
-    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange, badgeRanges],
+    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange, staleAfterDays, badgeRanges],
   )
 }
 
