@@ -33,6 +33,8 @@ History before 2026-11-19 is in the git log.
 - Double-clicking a Planner row no longer opens its task and closes it again at once.
 - In Edit layout, **More** in the widget tray is never cut off in a narrow window, and a short row's header hides
   its `fit` / `folded` mark instead of cutting it mid-word.
+- The Neglect map's axis labels no longer run into each other in a small map: the due-soon mark (`+3d`) and the
+  `30d` mark step aside where there is no room for them.
 
 ### Security
 

@@ -5,7 +5,9 @@ import {
   NEGLECT_LABEL_MAX_PX,
   NEGLECT_LABEL_MIN_PX,
   NEGLECT_LABEL_WORK_MAX,
+  NEGLECT_MARK_MIN_GAP_PX,
   placeNeglectLabels,
+  uncrowdedMarks,
   type LabelDot,
   type LabelRect,
   type PlacedLabel,
@@ -219,5 +221,40 @@ describe('placeNeglectLabels is bounded and places what the every-box placement 
         for (const b of boxes.slice(i + 1)) expect(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top).toBe(true)
       }
     }
+  })
+})
+
+describe('uncrowdedMarks: an axis mark that may give way', () => {
+  const keys = (marks: Array<{ key: string }>) => marks.map((m) => m.key)
+  // The y axis: `14d late` from the top, `Today` and `+Nd` centred on theirs, `+30d` up to the bottom (11px labels).
+  const y = (soonAt: number, h = 300) => [
+    { key: 'top', start: 0, end: 11 },
+    { key: 'today', start: 95 - 5.5, end: 95 + 5.5 },
+    { key: 'soon', start: soonAt - 5.5, end: soonAt + 5.5 },
+    { key: 'bottom', start: h - 11, end: h },
+  ]
+
+  it('keeps it with room on both sides', () => {
+    expect(keys(uncrowdedMarks(y(140, 300), 'soon'))).toEqual(['top', 'today', 'soon', 'bottom'])
+  })
+
+  it('drops it under the gap to the mark before it, or after it, or over either', () => {
+    // A gap of the minimum is kept; a px less gives way.
+    expect(keys(uncrowdedMarks(y(95 + 11 + NEGLECT_MARK_MIN_GAP_PX), 'soon'))).toContain('soon')
+    expect(keys(uncrowdedMarks(y(95 + 11 + NEGLECT_MARK_MIN_GAP_PX - 1), 'soon'))).toEqual(['top', 'today', 'bottom'])
+    expect(keys(uncrowdedMarks(y(286, 300), 'soon'))).toEqual(['top', 'today', 'bottom'])
+    expect(keys(uncrowdedMarks(y(97), 'soon'))).toEqual(['top', 'today', 'bottom'])
+  })
+
+  it('never drops another mark, and keeps the order given', () => {
+    // The x axis: `30d` centred, `60d+ untouched` (85px) up to the right end.
+    const x = [
+      { key: 'zero', start: 0, end: 14 },
+      { key: 'threshold', start: 40, end: 60 },
+      { key: 'mid', start: 90, end: 110 },
+      { key: 'cap', start: 112, end: 197 },
+    ]
+    expect(keys(uncrowdedMarks(x, 'mid'))).toEqual(['zero', 'threshold', 'cap'])
+    expect(keys(uncrowdedMarks(x, 'none'))).toEqual(['zero', 'threshold', 'mid', 'cap'])
   })
 })

@@ -232,6 +232,30 @@ test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
   await expectLayoutStep(page, 'Changed “Neglect map”')
 })
 
+test('the axes’ `+3d` gives way in a short plot, so no two marks crowd each other', async ({ page }) => {
+  const yMarks = map(page).locator('[class*="yMark"]')
+  /** The y marks shown, top to bottom, and the least space between two neighbours' labels. */
+  const read = () => yMarks.evaluateAll((els) => {
+    const boxes = els.map((e) => ({ text: e.textContent ?? '', ...JSON.parse(JSON.stringify(e.getBoundingClientRect())) as { top: number; bottom: number } }))
+      .sort((a, b) => a.top - b.top)
+    let least = Infinity
+    for (let i = 1; i < boxes.length; i++) least = Math.min(least, (boxes[i]?.top ?? 0) - (boxes[i - 1]?.bottom ?? 0))
+    return { texts: boxes.map((b) => b.text), least }
+  })
+  // Tall: room for the due-soon line's mark beside Today.
+  await expect.poll(async () => (await read()).texts).toEqual(['14d late', 'Today', '+3d', '+30d'])
+  // Short: `+3d` would crowd Today, so it goes; the others stay apart.
+  await page.setViewportSize({ width: 1440, height: 340 })
+  await expect.poll(async () => (await read()).texts).toEqual(['14d late', 'Today', '+30d'])
+  expect((await read()).least).toBeGreaterThanOrEqual(4)
+  // The x axis's marks stay apart too.
+  const xGaps = await map(page).locator('[class*="xMark"]').evaluateAll((els) => {
+    const boxes = els.map((e) => e.getBoundingClientRect()).sort((a, b) => a.left - b.left)
+    return boxes.slice(1).map((b, i) => b.left - (boxes[i]?.right ?? 0))
+  })
+  for (const gap of xGaps) expect(gap).toBeGreaterThanOrEqual(4)
+})
+
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 

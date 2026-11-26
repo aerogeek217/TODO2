@@ -6,6 +6,8 @@ The task maps are whole widgets that draw many tasks at once: the Neglect map (k
 
 It plots every open task the screen filter keeps by days untouched (`modifiedAt`, capped at 60) against days until due (14 late … 30 ahead). The pure placement is in `utils/neglect-map`.
 
+The axes' marks: `14d late` · `Today` · `+Nd` (the due-soon line) · `+30d` down, `0d` · the threshold · `30d` · `60d+ untouched` across. `+Nd` and `30d` give way where their label would come within 4px of a neighbor's in the plot as measured (`utils/neglect-labels.uncrowdedMarks`); the others always show.
+
 ### Zones
 
 - A task due soon (Settings' due-soon range) or late, and untouched for the tab's threshold ([Config](#config)), is **Slipping**: the shaded corner.

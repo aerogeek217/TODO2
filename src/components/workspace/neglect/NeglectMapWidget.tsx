@@ -32,7 +32,7 @@ import {
   type NeglectPoint,
   type NeglectZone,
 } from '../../../utils/neglect-map'
-import { placeNeglectLabels, type LabelDot, type LabelRect, type PlacedLabel } from '../../../utils/neglect-labels'
+import { placeNeglectLabels, uncrowdedMarks, type LabelDot, type LabelRect, type PlacedLabel } from '../../../utils/neglect-labels'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { sharedMemo } from '../../../utils/shared-memo'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
@@ -308,6 +308,16 @@ function yMarks(dueSoonDays: number | null): Array<{ y: number; label: string; k
   return marks
 }
 
+/** The axis marks' font: `--font-size-xs`, one line. */
+const MARK_FONT_PX = 11
+
+/** Where a mark's label lies along its axis, px: after `at` (the top, `0d`), before it (the bottom, the cap) or centred on it. */
+function markSpan(key: string, at: number, size: number): { start: number; end: number } {
+  if (key === 'top' || key === 'zero') return { start: at, end: at + size }
+  if (key === 'bottom' || key === 'cap') return { start: at - size, end: at }
+  return { start: at - size / 2, end: at + size / 2 }
+}
+
 /**
  * `0d` · the threshold · `30d` · `60d+ untouched`: the x axis's marks (the
  * threshold's replaces a mark it would crowd).
@@ -525,6 +535,16 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     }
   }, [map, plotted, strip, badges, today, fieldSize, stripSize])
 
+  // The axes span the field: `+Nd` and `30d` give way where their labels would crowd a neighbour's (unmeasured, all show).
+  const yAll = yMarks(dueSoonDays)
+  const shownYMarks = fieldSize.height > 0
+    ? uncrowdedMarks(yAll.map((m) => ({ ...m, ...markSpan(m.key, (yPct(m.y) / 100) * fieldSize.height, MARK_FONT_PX) })), 'soon')
+    : yAll
+  const xAll = xMarks(untouchedDays)
+  const shownXMarks = fieldSize.width > 0
+    ? uncrowdedMarks(xAll.map((m) => ({ ...m, ...markSpan(m.key, (xPct(m.x) / 100) * fieldSize.width, appTextWidth(m.label, MARK_FONT_PX)) })), 'mid')
+    : xAll
+
   return (
     <>
     {/* Alone in its cell, its top line (D26 AA1): its name (Slipping's count is its corner's word). */}
@@ -540,7 +560,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     >
       <div className={styles.chart} data-neglect-chart="" {...handlers}>
         <div className={styles.yAxis} aria-hidden="true">
-          {yMarks(dueSoonDays).map((m) => (
+          {shownYMarks.map((m) => (
             <span key={m.key} className={styles.yMark} data-mark={m.key} style={{ top: `${yPct(m.y)}%` }}>{m.label}</span>
           ))}
         </div>
@@ -569,7 +589,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
           </div>
         </div>
         <div className={styles.xAxis} aria-hidden="true">
-          {xMarks(untouchedDays).map((m) => (
+          {shownXMarks.map((m) => (
             <span key={m.key} className={styles.xMark} data-mark={m.key} style={{ left: `${xPct(m.x)}%` }}>{m.label}</span>
           ))}
         </div>
