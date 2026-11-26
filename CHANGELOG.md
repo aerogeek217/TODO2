@@ -23,6 +23,8 @@ History before 2026-11-19 is in the git log.
 ### Changed
 
 - The light theme's teal is a little deeper, so white text on its buttons and chips is easier to read.
+- The tally in the top bar, the Planner's fold chevron and the Neglect map's dots are easier to click: each
+  takes a press at least 24px across, drawn as before.
 
 ### Fixed
 

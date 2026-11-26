@@ -21,7 +21,7 @@ It plots every open task the screen filter keeps by days untouched (`modifiedAt`
 
 ### Dots
 
-- A dot opens the editor.
+- A dot opens the editor. It takes a press 24px round, though drawn at 9px (an `::after`); where two overlap, the dot on top takes it.
 - A drag on empty plot lassoes dots into the widget selection, which the bulk bar acts on.
 
 ### Config

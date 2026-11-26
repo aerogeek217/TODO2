@@ -20,6 +20,17 @@
   cursor: pointer;
 }
 
+/* At least 24px wide to press (one mark is 5px), past the marks' sides; nothing moves. */
+.tally::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: max(100%, 24px);
+  transform: translateX(-50%);
+}
+
 /* A click lists today's tasks: a faint ground on hover, the focus ring by keys. */
 .tally:hover {
   background: var(--color-tint-5);

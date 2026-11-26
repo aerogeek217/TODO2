@@ -412,6 +412,8 @@
   position: absolute;
   top: 1px;
   right: 6px;
+  /* Over the rows its press area reaches into. */
+  z-index: var(--z-above);
   display: grid;
   place-items: center;
   width: 22px;
@@ -422,6 +424,17 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
+}
+
+/* A 24 × 24px press round the 22 × 12 chevron, past the grip's edges; drawn at its size. */
+.dockFold::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
 }
 
 .dockFold:hover {

@@ -1,12 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { filterField, filterTray } from './fixtures/filters'
-import { openListFilterEditor, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { openListFilterEditor, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * 24px hit areas (UX cleanup 5A, step 3), by hit-testing in the real
  * browser: the tab's ×, a filter chip's × (an editor's and the top bar's),
  * Quick Add's chip × and the desktop row's checkbox each take presses over
- * at least 24 × 24 px around their centre, drawn at their old size — and
+ * at least 24 × 24 px around their centre, drawn at their old size — so do
+ * the top bar's tally, the Planner dock's fold chevron and a Neglect map
+ * dot — and
  * their neighbours (the tab's label, the chip's value, the next chip, the
  * priority gutter, the title) still take theirs. The J20 exceptions (the
  * priority gutter, a date's clear ×) and Lines rows stay small.
@@ -128,7 +130,7 @@ test('the top bar’s filter pill × takes a 24px press; a press beside it reach
   const pill = filterTray(page).locator('[data-top-bar-pill]')
   await expect(pill).toHaveText([/@"Aisha Rahman"/])
   const clear = pill.getByRole('button', { name: /^Remove @/ })
-  expect((await boxOf(clear)).width).toBe(14)
+  expect((await boxOf(clear)).width).toBe(16)
   const extent = await hitExtent(clear)
   expect(extent.width).toBeGreaterThanOrEqual(24)
   expect(extent.height).toBeGreaterThanOrEqual(24)
@@ -201,4 +203,48 @@ test('the row’s checkbox takes a 24px press at Rows, drawn at 18px; the gutter
   const line = page.locator('[data-list-widget="tL"] [data-row-key]').first()
   await expect(line).toBeVisible()
   expect(await line.locator('input[type="checkbox"]').count()).toBe(0)
+})
+
+test('the tally takes a 24px press at one mark, drawn at its width', async ({ page }) => {
+  await seedTaskList(page, { tasks: [{ title: 'Open one' }, { title: 'Done one', completedInDays: 0 }] })
+  const tally = page.getByRole('button', { name: '1 done today. Show them' })
+  await expect(tally).toBeVisible()
+  expect((await boxOf(tally)).width).toBeLessThan(10)
+  const extent = await hitExtent(tally)
+  expect(extent.width).toBeGreaterThanOrEqual(24)
+  expect(extent.height).toBeGreaterThanOrEqual(24)
+})
+
+test('the Planner dock’s fold chevron takes a 24px press, drawn at 22 × 12', async ({ page }) => {
+  await seedWorkspace(page, {
+    tasks: [{ title: 'Write the brief', doInDays: 0 }, { title: 'Not planned' }],
+    listDefinitions: [{ name: 'Everything' }],
+    layouts: [{
+      name: 'Week',
+      columns: [
+        { id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] },
+        { id: 'c2', weight: 3, rows: [wsRow({ id: 'k2', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+      ],
+    }],
+  })
+  const fold = page.locator('[data-planner="plan"]').getByRole('button', { name: 'Fold the trays' })
+  await expect(fold).toBeVisible()
+  const b = await boxOf(fold)
+  expect([b.width, b.height]).toEqual([22, 12])
+  const extent = await hitExtent(fold)
+  expect(extent.width).toBeGreaterThanOrEqual(24)
+  expect(extent.height).toBeGreaterThanOrEqual(24)
+})
+
+test('a Neglect map dot takes a 24px press, drawn at 9px', async ({ page }) => {
+  await seedWorkspace(page, {
+    tasks: [{ title: 'Call the auditor', dueInDays: 1, modifiedInDays: -18 }, { title: 'Book the offsite', dueInDays: 12, modifiedInDays: -1 }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'map', kind: 'neglect' }] })] }] }],
+  })
+  const dot = page.locator('[data-neglect-dot]').and(page.getByRole('button', { name: /^Book the offsite: / }))
+  await expect(dot).toBeVisible()
+  expect((await boxOf(dot)).width).toBe(9)
+  const extent = await hitExtent(dot)
+  expect(extent.width).toBeGreaterThanOrEqual(24)
+  expect(extent.height).toBeGreaterThanOrEqual(24)
 })
