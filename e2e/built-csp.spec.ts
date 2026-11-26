@@ -13,8 +13,9 @@ import { openSettings, pickInReview, seedTaskList, seedWorkspace, TASK_LIST_TAB,
 
 /**
  * Both built targets start and run under their own Content-Security-Policy:
- * the online build (`dist/index.html`, served over http, scripts from
- * ./assets only — no 'unsafe-inline') and the offline single file
+ * the online build (`dist/index.html`, served over http, deny by default,
+ * scripts, styles, fonts and icons from its own folder only — no
+ * 'unsafe-inline' script, nothing from another host) and the offline single file
  * (`dist/todo2.html`, opened from disk, deny by default, its one inline
  * script by hash). The dev server can't show this: its page needs inline
  * scripts and both policies are set at build time.
@@ -124,18 +125,24 @@ function cspOf(html: string): string {
   return /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1] ?? ''
 }
 
-test('the online build runs with a CSP that allows no inline script', async ({ page }) => {
-  const csp = cspOf(readFileSync(join(outDir, 'online', 'index.html'), 'utf8'))
-  expect(csp).toContain("script-src 'self';")
-  expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/)
-  expect(csp).toContain("base-uri 'none'")
-  expect(csp).toContain("form-action 'none'")
+test('the online build runs with a CSP that allows no inline script and nothing from another host', async ({ page, context }) => {
+  const html = readFileSync(join(outDir, 'online', 'index.html'), 'utf8')
+  expect(cspOf(html)).toBe(
+    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
+    + "manifest-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+  )
+  expect(html).toContain('<meta name="referrer" content="no-referrer" />')
+  expect(html).not.toMatch(/googleapis|gstatic/)
 
-  // No network in tests: the Google Fonts stylesheet is answered locally.
-  await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ contentType: 'text/css', body: '' }))
+  const requests: string[] = []
+  context.on('request', (req) => { requests.push(req.url()) })
   const violations = await watchCsp(page)
   await page.goto(onlineUrl)
   await exercise(page)
+  // The bundled font, from the page's own folder.
+  expect(await page.evaluate(async () => (await document.fonts.load('16px "Plus Jakarta Sans"')).length)).toBeGreaterThan(0)
+  expect(requests.some((u) => u.endsWith('.woff2'))).toBe(true)
+  expect(requests.filter((u) => !u.startsWith(onlineUrl) && !/^(data|blob|about):/.test(u))).toEqual([])
   expect(violations()).toEqual([])
 })
 

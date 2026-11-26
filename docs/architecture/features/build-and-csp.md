@@ -4,15 +4,21 @@ The app has two builds: the online build (`vite.config.ts` → `dist/index.html`
 
 ## The policy
 
-- The CSP is a `<meta>` in `index.html`, first in its head after the charset.
+- The CSP is a `<meta>` in `index.html`, first in its head after the charset. Each build puts its own policy in its place.
 - Every build keeps `base-uri 'none'; form-action 'none'`.
 - Dev keeps `'unsafe-inline'` for the React refresh preamble.
+- `index.html` sends no Referer (a `no-referrer` meta), in dev and both builds.
 
 ## Online build
 
-- `dist/index.html` loads its scripts from `./assets` only.
-- So its `cdnFonts` plugin drops `script-src 'unsafe-inline'`, and adds Google Fonts.
-- `noInlineScripts` fails the build on any inline script.
+`dist/index.html` loads nothing from another host. Its fonts are the bundled `src/fonts/*.woff2`, as in the offline file. Its policy (`onlineCsp`):
+
+- denies by default;
+- allows scripts from `./assets` only, so no `script-src 'unsafe-inline'`. `noInlineScripts` fails the build on any inline script;
+- allows `'self'` styles (and inline ones), fonts, icons and the manifest, and `data:` images;
+- allows `connect-src 'self'`. The app fetches nothing, but Vite's modulepreload polyfill fetches each preloaded chunk in a browser without native modulepreload.
+
+`e2e/built-csp.spec.ts` checks the policy whole, and that the page requests nothing outside its own folder.
 
 ## Offline single file
 
