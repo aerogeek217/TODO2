@@ -62,14 +62,23 @@ const LAST_TOKEN = /(?:[@#!]"(?:[^"\\]|\\.)*"?|[^\s()]+)$/
 const BARE_NAME = /^\p{L}[\p{L}\p{M}\p{N}_'&.-]*$/u
 const MAX_ROWS = 8
 
+/**
+ * How much of the text's end `beforeOf` reads tokens from. `LAST_TOKEN` and
+ * the trim of `[\s)]` runs retry from every position, so on the whole text
+ * they are quadratic (`'a'.repeat(50000) + ')'` took seconds); the last token
+ * typed is always within this tail.
+ */
+const TOKEN_TAIL = 1000
+
 /** What stands before `head` (the text before a term's place). */
 function beforeOf(head: string, reads: (text: string) => boolean): Before {
   const trimmed = head.trimEnd()
   if (trimmed === '' || trimmed.endsWith('(')) return { kind: 'open' }
-  const last = LAST_TOKEN.exec(trimmed)?.[0] ?? ''
+  const tail = trimmed.slice(-TOKEN_TAIL)
+  const last = LAST_TOKEN.exec(tail)?.[0] ?? ''
   if (OPERATORS.has(last.toLowerCase())) return { kind: 'open' }
   // A name, or a group closed after one: whole terms, whatever is around them.
-  const inner = trimmed.replace(/[\s)]+$/, '')
+  const inner = tail.replace(/[\s)]+$/, '')
   const name = LAST_TOKEN.exec(inner)?.[0] ?? ''
   const sort = SIGIL_SORT[name.charAt(0)]
   if (sort && name.length > 1) return { kind: 'term', sort }

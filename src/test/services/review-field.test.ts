@@ -3,6 +3,7 @@ import type { FilterExpr } from '../../models'
 import type { AutocompleteItem, AutocompleteSources, AutocompleteView } from '../../services/nlp-autocomplete'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, withPick, type ReviewFieldCounts, type ReviewFieldText } from '../../services/review-field'
 import { parseExpression, printExpression } from '../../utils/filter-expression'
+import { expectWithin } from '../timing'
 
 /**
  * The Review widget's field (widget feedback 2A, board Review-field): the
@@ -202,5 +203,36 @@ describe('peopleOnly', () => {
     expect(peopleOnly({ kind: 'and', items: [p(1), { kind: 'tag', id: 2 }] })).toBeNull()
     expect(peopleOnly({ kind: 'or', items: [p(1), { kind: 'status', id: 2 }] })).toBeNull()
     expect(peopleOnly({ kind: 'not', item: p(1) })).toBeNull()
+  })
+})
+
+describe('the field on a long text', () => {
+  // The last token and the trim of `)` / space runs were read by regexes
+  // that retry from every position: quadratic, seconds at this length. Only
+  // the text's end is read for them now.
+  const N = 50_000
+
+  it('a long word closed by a parenthesis, and a long run of parentheses: fast', () => {
+    expectWithin(1000, () => {
+      expect(view(`${'a'.repeat(N)}) `, N + 2, true)?.rows).toHaveLength(8)
+      expect(view(`a${') '.repeat(N / 2)}`, N + 1, true)?.rows).toHaveLength(8)
+    })
+  })
+
+  it('a pick after a long text: fast', () => {
+    const head = `${'a'.repeat(N)}) `
+    expectWithin(1000, () => {
+      expect(pick(head, head.length, head.length, ben).value).toBe(`${'a'.repeat(N)}) and @Ben `)
+    })
+  })
+
+  it('reads the term before the place as before, however long the text before it', () => {
+    const pad = '#q4 and '.repeat(500)
+    // After an operator: no joining word.
+    expect(pick(`${pad}@Aisha or `, pad.length + 10, pad.length + 10, ben).value).toBe(`${pad}@Aisha or @Ben `)
+    // After a name, in a text that doesn't read yet: or for its own sort.
+    expect(pick(`${pad}@Aisha  (`, pad.length + 7, pad.length + 7, ben).value).toBe(`${pad}@Aisha or @Ben (`)
+    expect(view(`${pad}@Aisha a`)).toBeNull()
+    expect(view(`${pad}due `, pad.length + 4, true)).toBeNull()
   })
 })

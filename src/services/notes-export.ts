@@ -184,7 +184,7 @@ export function htmlToMarkdown(html: string): string {
 }
 
 /** Drops trailing `\n`s — a loop, as `/\n+$/` is quadratic on long runs of `\n`. */
-function trimTrailingNewlines(s: string): string {
+export function trimTrailingNewlines(s: string): string {
   let end = s.length
   while (end > 0 && s[end - 1] === '\n') end--
   return s.slice(0, end)

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref } from '../../services/notes-export'
+import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref, trimTrailingNewlines } from '../../services/notes-export'
 import { expectWithin } from '../timing'
 
 describe('normalizeToMarkdown', () => {
@@ -340,6 +340,15 @@ describe('notes-export on long pathological lines', () => {
         expect(mdToHtml(`- ${pad}a${sep}b`)).toBe(`<ul>\n<li>a${sep}b</li>\n</ul>`)
       })
     }
+  })
+
+  it('trimTrailingNewlines: a long run of newlines inside or at the end', () => {
+    within(1000, () => {
+      expect(trimTrailingNewlines(`${'\n'.repeat(N)}x`)).toBe(`${'\n'.repeat(N)}x`)
+      expect(trimTrailingNewlines(`x${'\n'.repeat(N)}`)).toBe('x')
+    })
+    expect(trimTrailingNewlines('a\n\nb\n\n')).toBe('a\n\nb')
+    expect(trimTrailingNewlines('\n\n')).toBe('')
   })
 
   it('mdToHtml still links and trims as before', () => {
