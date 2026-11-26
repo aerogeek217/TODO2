@@ -160,6 +160,15 @@ describe('buildNeglectMap', () => {
     expect(map.slipping.map((p) => p.todo.id)).toEqual([late9.id, late2older.id, late2.id, soon.id])
   })
 
+  it('lists Forgotten the longest untouched first', () => {
+    const a = task(20)
+    const b = task(63)
+    const c = task(31)
+    const fresh = task(2)
+    const map = buildNeglectMap([a, b, c, fresh], opts)
+    expect(map.forgotten.map((p) => p.todo.id)).toEqual([b.id, c.id, a.id])
+  })
+
   it('moves only dots that share a spot, by id: the same every time, within the jitter', () => {
     const alone = task(20, 5)
     const a = task(30, 8)

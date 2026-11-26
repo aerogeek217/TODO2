@@ -164,11 +164,6 @@ export function neglectZoneDrill(zone: NeglectZone, todoIds: readonly number[], 
   return { title: spec.title, glyph: 'stale', description: spec.describe(days), source: { kind: 'todos', todoIds } }
 }
 
-/** A Neglect map's Slipping tasks, stale for Settings' Stale after (`days`). */
-export function slippingDrill(todoIds: readonly number[], days: number): GlanceDrill {
-  return neglectZoneDrill('slipping', todoIds, days)
-}
-
 // ── The task maps (2026-11-18) ──────────────────────────────────────────────
 
 /** A Work clusters cluster's tasks: each task of its people and tags, once. */

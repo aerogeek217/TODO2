@@ -25,6 +25,8 @@ History before 2026-11-19 is in the git log.
 - Three filter words take their days from Settings: `stale` (not changed for Settings' **Stale after**),
   `due soon` and `followup soon` (late, or within the due-soon range). A filter using them follows Settings as you
   change them.
+- **The Neglect map lists Forgotten tasks too.** A `Slipping | Forgotten` switch over its list picks which; it shows
+  Forgotten when nothing is slipping.
 - **Hide statuses ›** in the Neglect map's menu: tasks with a ticked status leave the map, its counts and its
   Review.
 

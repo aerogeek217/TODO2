@@ -117,12 +117,42 @@ describe('NeglectMapWidget', () => {
   it('lists Slipping latest first, numbered, the same number by each dot', () => {
     render(<NeglectMapWidget tab={neglectTab()} />)
     const list = screen.getByRole('region', { name: 'Slipping' })
-    const rows = within(list).getAllByRole('button')
+    const rows = within(within(list).getByRole('list')).getAllByRole('button')
     expect(rows.map((r) => r.textContent)).toEqual(['1Late and old4d late · 26d untouched', '2Soon and oldfollow-up 2d late · 30d untouched'])
     expect(dotOf('Late and old')?.textContent).toBe('1')
     expect(dotOf('Soon and old')?.textContent).toBe('2')
     expect(dotOf('Later and old')?.textContent).toBe('')
     expect(screen.getByTestId('neglect-slipping-count').textContent).toBe('2')
+  })
+
+  it('the list switches between Slipping and Forgotten; Forgotten rows carry no number, nor do the dots', () => {
+    act(() => useTodoStore.setState({ todos: [...useTodoStore.getState().todos, task(9, 'No date, older', 63)] }))
+    render(<NeglectMapWidget tab={neglectTab()} />)
+    const segment = (name: RegExp) => within(screen.getByRole('group', { name: 'List' })).getByRole('button', { name })
+    expect(segment(/^Slipping/)).toHaveAttribute('aria-pressed', 'true')
+    expect(segment(/^Forgotten/)).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('neglect-forgotten-count').textContent).toBe('2')
+    fireEvent.click(segment(/^Forgotten/))
+    const list = screen.getByRole('region', { name: 'Forgotten' })
+    // The longest untouched first.
+    const rows = within(within(list).getByRole('list')).getAllByRole('button')
+    expect(rows.map((r) => r.textContent)).toEqual(['No date, olderno dates · 63d untouched', 'No date, oldno dates · 50d untouched'])
+    expect(dotOf('Late and old')?.textContent).toBe('')
+    fireEvent.click(rows[0]!)
+    expect(useUIStore.getState().selectedTodoId).toBe(9)
+    fireEvent.click(segment(/^Slipping/))
+    expect(screen.getByRole('region', { name: 'Slipping' })).toBeInTheDocument()
+    expect(dotOf('Late and old')?.textContent).toBe('1')
+  })
+
+  it('shows Forgotten when nothing is slipping', () => {
+    act(() => useTodoStore.setState({ todos: useTodoStore.getState().todos.filter((t) => t.id !== 1 && t.id !== 2) }))
+    render(<WidgetFaceContext.Provider value={{ forced: 'medium' }}><NeglectMapWidget tab={neglectTab()} /></WidgetFaceContext.Provider>)
+    expect(screen.getByRole('region', { name: 'Forgotten' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Forgotten/ })).toHaveAttribute('aria-pressed', 'true')
+    // Back to Slipping by hand: nothing there.
+    fireEvent.click(screen.getByRole('button', { name: /^Slipping/ }))
+    expect(screen.getByText('Nothing slipping.')).toBeInTheDocument()
   })
 
   it('colours a dot by its picked tag, sizes it up for a priority flag, rings a late follow-up', () => {
@@ -233,7 +263,7 @@ describe('NeglectMapWidget faces (D25 R)', () => {
     expect(dots()).toHaveLength(0)
     const list = screen.getByRole('region', { name: 'Slipping' })
     expect(within(list).getByTestId('neglect-slipping-count')).toHaveTextContent('2')
-    const rows = within(list).getAllByRole('button')
+    const rows = within(within(list).getByRole('list')).getAllByRole('button')
     expect(rows.map((r) => r.textContent?.slice(0, 1))).toEqual(['1', '2'])
     fireEvent.click(rows[0]!)
     expect(useUIStore.getState().selectedTodoId).not.toBeNull()

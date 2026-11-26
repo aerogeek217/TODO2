@@ -411,9 +411,45 @@
 
 .slipHead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   padding: 0 4px;
+}
+
+/* `Slipping N | Forgotten N`: which list shows. */
+.listSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listSegment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.listSegment[aria-pressed='true'] {
+  background: var(--color-tint-8);
+}
+
+.listSegment:hover {
+  background: var(--color-tint-5);
+}
+
+.listSegment[aria-pressed='true']:hover {
+  background: var(--color-tint-10);
+}
+
+.listSegment:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .slipTitle {
@@ -422,6 +458,24 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-deadline);
+}
+
+.listSegment[aria-pressed='false'] .slipTitle {
+  color: var(--color-text-muted);
+}
+
+.listSegment[data-list-zone='forgotten'][aria-pressed='true'] .slipTitle {
+  color: var(--color-followup);
+}
+
+/* A Forgotten row's mark, where a Slipping row has its number. */
+.forgottenDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 5px 3px 0;
+  border-radius: 50%;
+  background: var(--color-followup);
 }
 
 .slipCount {

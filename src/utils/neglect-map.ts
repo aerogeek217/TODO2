@@ -82,6 +82,8 @@ export interface NeglectMap<T extends NeglectFields = NeglectFields> {
   points: NeglectPoint<T>[]
   /** The Slipping tasks, latest first, then the longest untouched. */
   slipping: NeglectPoint<T>[]
+  /** The Forgotten tasks, the longest untouched first. */
+  forgotten: NeglectPoint<T>[]
   /** Tasks per zone. */
   counts: Record<NeglectZone, number>
 }
@@ -197,7 +199,10 @@ export function buildNeglectMap<T extends NeglectFields>(todos: readonly T[], op
   const slipping = points
     .filter((p) => p.zone === 'slipping')
     .sort((a, b) => (a.dateIn ?? 0) - (b.dateIn ?? 0) || b.untouched - a.untouched || a.todo.id - b.todo.id)
-  return { points, slipping, counts }
+  const forgotten = points
+    .filter((p) => p.zone === 'forgotten')
+    .sort((a, b) => b.untouched - a.untouched || a.todo.id - b.todo.id)
+  return { points, slipping, forgotten, counts }
 }
 
 /**

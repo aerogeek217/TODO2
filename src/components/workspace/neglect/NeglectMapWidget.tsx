@@ -10,7 +10,7 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import type { WidgetFace } from '../../../utils/widget-face'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { neglectZoneDrill, slippingDrill } from '../glance/glance-drills'
+import { neglectZoneDrill } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useScreenFilter } from '../../../stores/screen-filter'
@@ -392,16 +392,17 @@ function useNeglectMap(tab: NeglectTab): NeglectMap<PersistedTodoItem> {
  * the open tasks placed — no 7-day change: what a task's untouched days
  * were a week ago isn't kept (a task touched since has lost its older
  * stamp), so a past Slipping count can't be rebuilt honestly. Medium: the
- * numbered Slipping list without the plot.
+ * list (Slipping or Forgotten) without the plot.
  */
 function NeglectFace({ tab, face }: { tab: NeglectTab; face: Exclude<WidgetFace, 'large'> }) {
   const map = useNeglectMap(tab)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  const [listZone, setListZone] = useListZone(map)
   const slipping = map.slipping.length
   if (face === 'medium') {
     return (
       <div className={`${styles.widget} ${styles.stacked} ${styles.face}`} data-neglect-face="medium" data-neglect-face-tab={tab.id}>
-        <SlippingList map={map} staleAfterDays={staleAfterDays} />
+        <ZoneList map={map} zone={listZone} onZone={setListZone} staleAfterDays={staleAfterDays} />
       </div>
     )
   }
@@ -440,15 +441,17 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const { colourBy } = tab.config
 
   const map = useNeglectMap(tab)
+  const [listZone, setListZone] = useListZone(map)
   const openTotal = useMemo(() => todos.reduce((n, t) => n + (t.isCompleted ? 0 : 1), 0), [todos])
 
-  // The Slipping list: beside a wide plot, under a phone's; a narrower widget has none (its plot fills it).
+  // The list: beside a wide plot, under a phone's; a narrower widget has none (its plot fills it).
   const besideList = !isMobile && size.width >= NEGLECT_SIDE_LIST_MIN_PX
   const showList = isMobile || besideList
-  // The dots' numbers are the list's: none without it.
+  // The dots' numbers are the Slipping list's: none without it, or while it shows Forgotten.
+  const numbered = showList && listZone === 'slipping'
   const badges = useMemo(
-    () => new Map(showList ? map.slipping.slice(0, SLIPPING_LISTED).map((p, i) => [p.todo.id, i + 1]) : []),
-    [map, showList],
+    () => new Map(numbered ? map.slipping.slice(0, SLIPPING_LISTED).map((p, i) => [p.todo.id, i + 1]) : []),
+    [map, numbered],
   )
 
   // Selection rows, in the order the keyboard walks them: the Slipping list's, then the rest.
@@ -631,8 +634,10 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
       </div>
 
       {showList && (
-        <SlippingList
+        <ZoneList
           map={map}
+          zone={listZone}
+          onZone={setListZone}
           staleAfterDays={staleAfterDays}
           selectedIds={inScope ? selectedIds : undefined}
         />
@@ -644,30 +649,63 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   )
 }
 
+/** The two lists the map's list switches between. */
+type ListZone = 'slipping' | 'forgotten'
+
 /**
- * The Slipping list: its count, then its first `SLIPPING_LISTED` tasks
- * numbered as their dots are badged (each opens its task), the rest in the
- * task dialog. The map's own list, and its medium face (D25 R) alone.
+ * Which list the map shows: the one picked on its switch, else Slipping —
+ * Forgotten while nothing is slipping and something is forgotten. Not
+ * saved: the tab has no view state.
  */
-function SlippingList({ map, staleAfterDays, selectedIds }: {
+function useListZone(map: NeglectMap<PersistedTodoItem>): [ListZone, (zone: ListZone) => void] {
+  const [picked, setPicked] = useState<ListZone | null>(null)
+  const zone = picked ?? (map.slipping.length === 0 && map.forgotten.length > 0 ? 'forgotten' : 'slipping')
+  return [zone, setPicked]
+}
+
+/**
+ * The map's list: a `Slipping N | Forgotten N` switch over it, then the
+ * shown zone's first `SLIPPING_LISTED` tasks (each opens its task) — the
+ * Slipping ones numbered as their dots are badged, the Forgotten ones with
+ * a yellow dot —, the rest in the task dialog. The full map's own list, and
+ * its medium face (D25 R) alone.
+ */
+function ZoneList({ map, zone, onZone, staleAfterDays, selectedIds }: {
   map: NeglectMap<PersistedTodoItem>
+  zone: ListZone
+  onZone: (zone: ListZone) => void
   /** Settings' Stale after (the task dialog's description). */
   staleAfterDays: number
   /** The widget's selection, while it owns it (the full map's). */
   selectedIds?: ReadonlySet<number>
 }) {
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const listed = map.slipping.slice(0, SLIPPING_LISTED)
-  const showMore = map.slipping.length > listed.length
+  const points = map[zone]
+  const listed = points.slice(0, SLIPPING_LISTED)
+  const showMore = points.length > listed.length
+  const segment = (z: ListZone) => (
+    <button
+      type="button"
+      className={styles.listSegment}
+      aria-pressed={zone === z}
+      data-list-zone={z}
+      onClick={() => onZone(z)}
+    >
+      <span className={styles.slipTitle}>{ZONE_NAMES[z]}</span>
+      <span className={styles.slipCount} data-testid={`neglect-${z}-count`}>{map[z].length}</span>
+    </button>
+  )
   return (
-    <section className={styles.slipping} aria-label="Slipping">
+    <section className={styles.slipping} aria-label={ZONE_NAMES[zone]} data-list-zone={zone}>
       <header className={styles.slipHead}>
-        <span className={styles.slipTitle}>Slipping</span>
-        <span className={styles.slipCount} data-testid="neglect-slipping-count">{map.slipping.length}</span>
+        <span className={styles.listSwitch} role="group" aria-label="List">
+          {segment('slipping')}
+          {segment('forgotten')}
+        </span>
       </header>
-      {map.slipping.length === 0 ? (
+      {points.length === 0 ? (
         <p className={styles.slipEmpty}>
-          Nothing slipping.
+          {zone === 'slipping' ? 'Nothing slipping.' : 'Nothing forgotten.'}
         </p>
       ) : (
         <ol className={styles.slipList}>
@@ -680,7 +718,9 @@ function SlippingList({ map, staleAfterDays, selectedIds }: {
                 {...{ [TODO_ID_ATTR]: p.todo.id }}
                 onClick={() => openEditPopup(p.todo.id)}
               >
-                <span className={styles.slipBadge} aria-hidden="true">{i + 1}</span>
+                {zone === 'slipping'
+                  ? <span className={styles.slipBadge} aria-hidden="true">{i + 1}</span>
+                  : <span className={styles.forgottenDot} aria-hidden="true" />}
                 <span className={styles.slipText}>
                   <span className={styles.slipName}>{p.todo.title}</span>
                   <span className={styles.slipMeta}>{dateInText(p.dateIn, p.dateBy)} · {untouchedText(p.untouched)}</span>
@@ -695,10 +735,10 @@ function SlippingList({ map, staleAfterDays, selectedIds }: {
           type="button"
           className={styles.slipMore}
           onClick={() => useUIStore.getState().showTaskDialog(
-            slippingDrill(map.slipping.map((p) => p.todo.id), staleAfterDays),
+            neglectZoneDrill(zone, points.map((p) => p.todo.id), staleAfterDays),
           )}
         >
-          {map.slipping.length - listed.length} more
+          {points.length - listed.length} more
         </button>
       )}
     </section>

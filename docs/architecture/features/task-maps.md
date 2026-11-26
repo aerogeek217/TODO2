@@ -23,10 +23,14 @@ Stale after's line, its mark, the shaded Slipping corner and the strip's Forgott
 - Each zone's word carries its count and opens its tasks as a list in the task dialog (`glance-drills.neglectZoneDrill`). A zone with none is plain words.
 - The words are the four corners', and the strip's **No dates** (every task in it) and Forgotten.
 
-### Slipping list
+### The list
 
-- The numbered Slipping list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot.
+- The list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot. It is the medium face alone.
 - Narrower, the plot fills the widget, there is no list, and the dots carry no numbers.
+- **A switch over it, `Slipping N | Forgotten N`, picks the zone it lists.** The picked side has a tint and its word its zone's color. Until one is picked, it shows Slipping, or Forgotten while nothing is slipping and something is forgotten. The pick is never saved.
+- Slipping lists latest first, then the longest untouched, numbered as its dots are badged. Forgotten lists the longest untouched first, each row with a yellow dot, and the plot's dots carry no numbers.
+- A row reads the date that placed it and the days untouched (`no dates · 63d untouched`). It opens the editor.
+- Past nine rows, `N more` opens the zone's tasks in the task dialog. The small face keeps the Slipping count.
 
 ### Dots
 
