@@ -5,6 +5,7 @@ import { useNeglectMenuEntries } from '../../../components/workspace/neglect/neg
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import type { Tag } from '../../../models'
 import type { NeglectTab } from '../../../models/workspace-layout'
+import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 
@@ -68,5 +69,29 @@ describe('the Neglect map’s tag-pick submenu', () => {
     expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { colourBy: { kind: 'tags', tagIds: [2] } })
     // Untouched is Settings' Stale after: no menu item of its own.
     expect(item(result.current, 'Untouched after')).toBeUndefined()
+  })
+
+  it('the Neglect map’s Hide statuses: a checkbox per status, ticked = hidden; its value names them', () => {
+    const patchTabConfig = vi.fn()
+    useWorkspaceStore.setState({ patchTabConfig })
+    useStatusStore.setState({ statuses: [
+      { id: 1, name: 'Waiting', color: '#a070e0', sortOrder: 1 },
+      { id: 4, name: 'Parked', color: '#8a8a8a', sortOrder: 2 },
+    ] })
+    const { result, rerender } = renderHook(({ tab }) => useNeglectMenuEntries(tab), { initialProps: { tab: neglectTab({}) } })
+    const hide = item(result.current, 'Hide statuses')
+    expect(hide.note).toBe('None')
+    expect(hide.childrenWidth).toBe(232)
+    expect(item(hide.children, 'Parked').checked).toBe(false)
+    expect(item(hide.children, 'Parked').keepOpen).toBe(true)
+    expect((hide.children ?? []).some((e) => e.kind === 'note' && e.text === 'Tasks with a hidden status leave the map, its counts and its Review.')).toBe(true)
+    item(hide.children, 'Parked').onSelect!()
+    expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { hiddenStatusIds: [4] })
+    // A deleted status's id hides nothing and isn't named.
+    rerender({ tab: neglectTab({ hiddenStatusIds: [4, 1, 99] }) })
+    const hidden = item(result.current, 'Hide statuses')
+    expect(hidden.note).toBe('Waiting, Parked')
+    item(hidden.children, 'Waiting').onSelect!()
+    expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { hiddenStatusIds: [4, 99] })
   })
 })

@@ -36,7 +36,6 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'components/workspace/cell-menu.tsx': ['CellMenuActions', 'EditCardMenuActions', 'mergedCellMenu', 'NO_MERGE_REASON'],
   'components/workspace/glance/breakdown-copy.ts': ['daysLabel'],
   'components/workspace/glance/glance-hooks.ts': ['GlanceResult'],
-  'components/workspace/glance/menu-entries.tsx': ['toggledId'],
   'components/workspace/glance/number-colors.ts': ['dimmed'],
   'components/workspace/neglect/NeglectMapWidget.tsx': ['SLIPPING_LISTED'],
   'components/workspace/planner/planner-menu.tsx': ['PlannerMenuActions'],

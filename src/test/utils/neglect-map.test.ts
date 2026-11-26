@@ -130,6 +130,15 @@ describe('buildNeglectMap', () => {
     expect(map.counts).toEqual({ slipping: 1, inHand: 0, later: 0, drifting: 0, forgotten: 0, noDates: 0 })
   })
 
+  it('leaves off a task with a hidden status: no zone, no count', () => {
+    const parked = task(40, 2, { statusId: 4 })
+    const waiting = task(40, 2, { statusId: 2 })
+    const none = task(40)
+    const map = buildNeglectMap([parked, waiting, none], { ...opts, hiddenStatusIds: [4] })
+    expect(map.points.map((p) => p.todo.id)).toEqual([waiting.id, none.id])
+    expect(map.counts).toEqual({ slipping: 1, inHand: 0, later: 0, drifting: 0, forgotten: 1, noDates: 0 })
+  })
+
   it('draws Stale after’s line only while it is on and short of the cap', () => {
     expect(staleLineShown(14)).toBe(true)
     expect(staleLineShown(59)).toBe(true)

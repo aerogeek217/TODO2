@@ -183,6 +183,16 @@ describe('NeglectMapWidget', () => {
     expect(document.querySelector('[data-mark="threshold"]')).toBeNull()
   })
 
+  it('a hidden status’s tasks leave every zone and count', () => {
+    act(() => useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 || t.id === 6 ? { ...t, statusId: 4 } : t)) }))
+    render(<NeglectMapWidget tab={neglectTab({ hiddenStatusIds: [4] })} />)
+    expect(dotOf('Late and old')).toBeUndefined()
+    expect(dotOf('No date, old')).toBeUndefined()
+    expect(dots()).toHaveLength(5)
+    expect(screen.getByTestId('neglect-slipping-count').textContent).toBe('1')
+    expect(screen.queryByTestId('neglect-forgotten')?.textContent).toBe('Forgotten · 0')
+  })
+
   it('a task whose only date is a planned day is left off the map', () => {
     act(() => useTodoStore.setState({ todos: [...useTodoStore.getState().todos, task(9, 'Planned only, old', 60, undefined, { doDate: day(2) })] }))
     render(<NeglectMapWidget tab={neglectTab()} />)

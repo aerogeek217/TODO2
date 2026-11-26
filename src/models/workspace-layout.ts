@@ -314,6 +314,12 @@ export type NeglectColourBy =
  */
 export interface NeglectTabConfig {
   colourBy: NeglectColourBy
+  /**
+   * Statuses hidden from the map (Hide statuses ›): a task with one leaves
+   * every zone, count and Review. Absent: none. A deleted status's id stays,
+   * hiding nothing.
+   */
+  hiddenStatusIds?: number[]
 }
 
 /** A new Neglect map's config: colour by `tagIds` (the `Project: …` tags, which the caller picks). */

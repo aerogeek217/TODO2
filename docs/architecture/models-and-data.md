@@ -181,8 +181,8 @@ A calendar:
 
 A Neglect map:
 
-- The check wants `colourBy` of a known kind (`tags` with a list of finite numbers, `people`, `none`).
-- The repair (`pickNeglectConfig`) keeps only that key, a repeated tag id once, and no view state. A bad `colourBy` becomes `none`, a tag list keeping its numeric ids: a `tab or cell settings reset` fix. A stored `untouchedDays` is dropped quietly, as any stray key.
+- The check wants `colourBy` of a known kind (`tags` with a list of finite numbers, `people`, `none`) and `hiddenStatusIds` absent or a list of finite numbers.
+- The repair (`pickNeglectConfig`) keeps only those keys, a repeated id once, and no view state. A bad `colourBy` becomes `none`, a tag list keeping its numeric ids; a bad `hiddenStatusIds` keeps its numbers, or goes when it isn't a list. Each is a `tab or cell settings reset` fix. A stored `untouchedDays` is dropped quietly, as any stray key.
 
 A Numbers widget:
 

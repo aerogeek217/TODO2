@@ -19,8 +19,9 @@ import { isDueNear, type UrgentDueWithinDays } from './urgency'
  *
  * A task with neither date goes in the strip under the plot: **Forgotten**
  * when stale, else just no dates. A task whose only date is a planned day
- * is left off the map (the Planner holds it). With Stale after off (0)
- * nothing is stale, so nothing is Slipping, Drifting or Forgotten.
+ * is left off the map (the Planner holds it), as is a task with a status
+ * the tab hides. With Stale after off (0) nothing is stale, so nothing is
+ * Slipping, Drifting or Forgotten.
  */
 
 /** Where a task lands on the map. */
@@ -42,7 +43,7 @@ export const NEGLECT_JITTER = 0.45
 const PROJECT_TAG_PREFIX = 'Project:'
 
 /** The task fields the map reads. */
-export type NeglectFields = Pick<TodoItem, 'modifiedAt' | 'dueDate' | 'nextFollowupAt' | 'doDate' | 'isCompleted'> & { id: number }
+export type NeglectFields = Pick<TodoItem, 'modifiedAt' | 'dueDate' | 'nextFollowupAt' | 'doDate' | 'isCompleted' | 'statusId'> & { id: number }
 
 interface NeglectOptions {
   today: Date
@@ -50,6 +51,8 @@ interface NeglectOptions {
   staleAfterDays: number
   /** Settings' due-soon range (`urgentDueWithinDays`); `null` = only a late date is near. */
   dueSoonDays: UrgentDueWithinDays
+  /** The tab's hidden statuses (`NeglectTabConfig.hiddenStatusIds`): a task with one is left off. */
+  hiddenStatusIds?: readonly number[]
 }
 
 /** One task on the map. */
@@ -150,8 +153,8 @@ function ySide(y: number, dueSoonDays: UrgentDueWithinDays): NudgeSide {
 const ZONES: readonly NeglectZone[] = ['slipping', 'inHand', 'later', 'drifting', 'forgotten', 'noDates']
 
 /**
- * The map of `todos` (completed tasks, and tasks whose only date is a
- * planned day, left out). A dot sitting on another's spot (same capped x
+ * The map of `todos` (completed tasks, tasks whose only date is a planned
+ * day and tasks with a hidden status left out). A dot sitting on another's spot (same capped x
  * and clamped y, or the same x in the strip) is moved a little, by its id —
  * never across a line it sits on (Stale after, the due-soon line, today) or
  * off the plot.
@@ -159,8 +162,10 @@ const ZONES: readonly NeglectZone[] = ['slipping', 'inHand', 'later', 'drifting'
 export function buildNeglectMap<T extends NeglectFields>(todos: readonly T[], opts: NeglectOptions): NeglectMap<T> {
   const counts = Object.fromEntries(ZONES.map((z) => [z, 0])) as Record<NeglectZone, number>
   const points: NeglectPoint<T>[] = []
+  const hidden = new Set(opts.hiddenStatusIds ?? [])
   for (const todo of todos) {
     if (todo.isCompleted) continue
+    if (todo.statusId != null && hidden.has(todo.statusId)) continue
     const { dateIn, dateBy } = placingDate(todo, opts.today)
     // Only a planned day: the Planner holds it.
     if (dateIn == null && todo.doDate) continue

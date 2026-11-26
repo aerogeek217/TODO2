@@ -35,10 +35,11 @@ Stale after's line, its mark, the shaded Slipping corner and the strip's Forgott
 
 ### Config
 
-The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy`, set in its ⋯. The tab has no view state.
+The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy` and `hiddenStatusIds`, both set in its ⋯ (`neglect-menu`). The tab has no view state.
 
 - **Color by** is `colourBy` (`NeglectColourBy`): the picked tags (`{ kind: 'tags', tagIds }`), People (`{ kind: 'people' }`) or None (`{ kind: 'none' }`).
 - A deleted tag stays in `tagIds` and stops coloring, as in a filter.
+- **Hide statuses ›** is `hiddenStatusIds` (absent: none): a checkbox per status, its mark in its color, the item's value naming the hidden ones (`None` when none). A task with a hidden status leaves every zone, count and Review. A deleted status's id stays and hides nothing.
 - A new map (`defaultNeglectConfig`) colors by the `Project: …` tags. The workspace store passes those tags as `TabSeed.neglectTagIds` (`utils/neglect-map.projectTagIds`).
 - The layout repair (`data/layout-shape.pickNeglectConfig`) keeps only the model's keys. A stored `untouchedDays` is dropped quietly, with no repair notice and no schema step.
 

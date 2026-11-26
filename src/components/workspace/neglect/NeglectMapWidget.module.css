@@ -648,3 +648,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* A status's mark beside its name in the Hide statuses submenu, in the status's color (14px, as the board). */
+.statusMark {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  font-size: var(--font-size-body);
+}

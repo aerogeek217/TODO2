@@ -93,6 +93,8 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: {} })), 'cells[0].tabs[0].config.colourBy'],
   ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' } } })), 'cells[0].tabs[0].config.colourBy'],
   ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 } } })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map hidden statuses not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: 2 } })), 'cells[0].tabs[0].config.hiddenStatusIds'],
+  ['Neglect map hidden status not a number', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: ['2'] } })), 'cells[0].tabs[0].config.hiddenStatusIds'],
 ]
 
 /**
@@ -394,6 +396,19 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(rowFixes('layouts', valid)).toEqual([])
     expect(tabOf(valid)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 5] } } })
     const bad = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'rainbow' }, untouchedDays: 0 } }))
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' } } })
+  })
+
+  it('a Neglect map’s hidden statuses: kept, a repeat once; a bad list keeps its numbers, or goes', () => {
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
+    const kept = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4, 2, 4] } }))
+    expect(rowFixes('layouts', kept)).toEqual([])
+    expect(tabOf(kept)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4, 2] } })
+    const mixed = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4, 'x'] } }))
+    expect(rowFixes('layouts', mixed)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(mixed)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4] } })
+    const bad = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: 'all' } }))
     expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
     expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' } } })
   })

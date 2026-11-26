@@ -370,19 +370,21 @@ const neglectMemo = sharedMemo((
   ctx: StatsContext,
   staleAfterDays: number,
   dueSoonDays: UrgentDueWithinDays,
-): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, staleAfterDays, dueSoonDays }))
+  hiddenStatusIds: readonly number[] | undefined,
+): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, staleAfterDays, dueSoonDays, hiddenStatusIds }), 4)
 
 /**
  * Every open task the screen filter keeps, placed on the map (the full
  * map's and its faces'): the glance widgets' shared base (`useStatsBase`),
  * so the tasks are filtered once for all of them, under Settings' Stale
- * after and due-soon range as they are now.
+ * after and due-soon range as they are now, the tab's hidden statuses left
+ * out.
  */
-function useNeglectMap(): NeglectMap<PersistedTodoItem> {
+function useNeglectMap(tab: NeglectTab): NeglectMap<PersistedTodoItem> {
   const base = useStatsBase()
   const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
-  return neglectMemo(base.shown, base.ctx, staleAfterDays, dueSoonDays)
+  return neglectMemo(base.shown, base.ctx, staleAfterDays, dueSoonDays, tab.config.hiddenStatusIds)
 }
 
 /**
@@ -393,7 +395,7 @@ function useNeglectMap(): NeglectMap<PersistedTodoItem> {
  * numbered Slipping list without the plot.
  */
 function NeglectFace({ tab, face }: { tab: NeglectTab; face: Exclude<WidgetFace, 'large'> }) {
-  const map = useNeglectMap()
+  const map = useNeglectMap(tab)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const slipping = map.slipping.length
   if (face === 'medium') {
@@ -437,7 +439,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const [stripRef, stripSize] = useElementSize()
   const { colourBy } = tab.config
 
-  const map = useNeglectMap()
+  const map = useNeglectMap(tab)
   const openTotal = useMemo(() => todos.reduce((n, t) => n + (t.isCompleted ? 0 : 1), 0), [todos])
 
   // The Slipping list: beside a wide plot, under a phone's; a narrower widget has none (its plot fills it).
