@@ -44,8 +44,8 @@ describe('reviewOrder (item 7)', () => {
     expect(reviewOrder(IDS, 'last', env)).toEqual([2, 5, 1, 3, 4])
   })
 
-  it('Priority: Focus, Urgent + Important, Urgent, Important, none', () => {
-    expect(reviewOrder(IDS, 'priority', env)).toEqual([3, 4, 5, 2, 1])
+  it('Priority: the list ladder — Urgent, then Important, then Focus', () => {
+    expect(reviewOrder(IDS, 'priority', env)).toEqual([4, 5, 2, 3, 1])
   })
 
   it('Title: A–Z, case aside', () => {

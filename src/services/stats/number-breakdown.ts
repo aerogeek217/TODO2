@@ -28,7 +28,7 @@ export interface BreakdownEntry {
  * tasks with nobody (`Unassigned`) / no tag (`No tag`) last, when there are
  * any. By status or priority, the Breakdown chart's split
  * (`computeBreakdown`): each status in Settings' order then `No status`, the
- * Priority sort's groups (Focus, Urgent + Important, Urgent, Important) then
+ * priority groups (Focus, Urgent + Important, Urgent, Important) then
  * `No priority`. Pure; empty for `none`.
  */
 export function numberBreakdown(

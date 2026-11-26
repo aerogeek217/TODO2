@@ -100,7 +100,7 @@ A new one (`newNumberConfig`) is `Open` over an empty filter, never lit, against
 - A Share of… does likewise, with its line and change under its percent.
 - Large draws it bigger, with a breakdown by person, tag, status or priority. Each line opens its tasks.
   - By status: each status in Settings' order with its glyph, then No status.
-  - By priority: the Priority sort's groups (Focus, Urgent + Important, Urgent, Important) with their rings, then No priority.
+  - By priority: the exclusive priority groups (Focus, Urgent + Important, Urgent, Important) with their rings, then No priority.
 
 ## Number shapes
 

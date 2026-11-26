@@ -10,7 +10,7 @@ import {
 } from '../stores/review-session'
 import { startOfToday } from '../utils/date'
 import { pickTodoDate, type TodoSortDateField } from '../utils/effective-date'
-import { priorityRank } from '../utils/markers'
+import { prioritySortRank } from '../utils/markers'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 
 /**
@@ -49,7 +49,7 @@ function sortComparator(sort: Exclude<ReviewSort, 'queue'>, env: ReviewOrderEnv)
       const rank = new Map<number, number>()
       const rankOf = (t: PersistedTodoItem) => {
         let r = rank.get(t.id)
-        if (r === undefined) rank.set(t.id, (r = priorityRank(t, env.today, env.urgentRange)))
+        if (r === undefined) rank.set(t.id, (r = prioritySortRank(t, env.today, env.urgentRange)))
         return r
       }
       return (a, b) => (rankOf(a) - rankOf(b)) || compareDates(pickTodoDate(a, 'deadline'), pickTodoDate(b, 'deadline'))
@@ -64,9 +64,9 @@ function sortComparator(sort: Exclude<ReviewSort, 'queue'>, env: ReviewOrderEnv)
 /**
  * `ids` in `sort`'s order: the queue's own (`queue`); by due date or next
  * follow-up (soonest first, none last), last follow-up (oldest first, never
- * followed up last), priority (Focus, Urgent + Important, Urgent —
- * a due date in Settings' urgent range counts —, Important, none; then due
- * date) or title (A–Z) — the keys a list sorts by. Ties keep the queue's
+ * followed up last), priority (the list's ladder, `prioritySortRank`:
+ * Urgent — a due date in Settings' urgent range counts —, then Important,
+ * then Focus; then due date) or title (A–Z) — the keys a list sorts by. Ties keep the queue's
  * order; a task not loaded keeps its queue place at the end.
  */
 export function reviewOrder(ids: readonly number[], sort: ReviewSort, env: ReviewOrderEnv): number[] {

@@ -159,15 +159,31 @@ describe('taskRowColumns — only the fields a list uses (flair P8)', () => {
     expect(taskRowColumns(528, undefined, all)).toEqual(taskRowColumns(528))
   })
 
-  it('no notes and no status: those tracks go, the details shrink by them and their gaps; people and tags keep their widths', () => {
+  it('no notes and no status: those tracks go and the tags take their room and gaps; the details keep their width', () => {
     const full = taskRowColumns(528)
     const cols = taskRowColumns(528, undefined, { ...all, notes: false, status: false })
     expect(cols.notes).toBe(0)
     expect(cols.status).toBe(0)
     expect(cols.people).toBe(full.people)
-    expect(cols.tags).toBe(full.tags)
-    expect(cols.laidOut).toBe(full.laidOut - TASK_ROW.notes - TASK_ROW.status - 2 * TASK_ROW.gap)
-    expect(tracks(cols.template)).toEqual([`${full.people}px`, `${full.tags}px`, `${full.dates}px`])
+    expect(cols.tags).toBe(full.tags + TASK_ROW.notes + TASK_ROW.status + 2 * TASK_ROW.gap)
+    expect(cols.laidOut).toBe(full.laidOut)
+    expect(tracks(cols.template)).toEqual([`${full.people}px`, `${cols.tags}px`, `${full.dates}px`])
+  })
+
+  it('no dates: the tags take the dates track’s room', () => {
+    const full = taskRowColumns(528)
+    const cols = taskRowColumns(528, undefined, { ...all, due: false, followup: false })
+    expect(cols.dates).toBe(0)
+    expect(cols.tags).toBe(full.tags + full.dates + TASK_ROW.gap)
+    expect(cols.laidOut).toBe(full.laidOut)
+  })
+
+  it('tags unused: no tags track, and the details shrink by the unused tracks', () => {
+    const full = taskRowColumns(528)
+    const cols = taskRowColumns(528, undefined, { ...all, tags: false, due: false, followup: false })
+    expect(cols.tags).toBe(0)
+    expect(cols.people).toBe(full.people)
+    expect(cols.laidOut).toBe(full.laidOut - full.tags - full.dates - 2 * TASK_ROW.gap)
   })
 
   it('no follow-ups: the dates track is the due part alone; no due dates: the follow-up part alone', () => {
@@ -179,12 +195,12 @@ describe('taskRowColumns — only the fields a list uses (flair P8)', () => {
     expect(noDue).toMatchObject({ due: 0, followup: parts.followup, dates: parts.followup })
   })
 
-  it('people unused: no people track, and tags don’t grow into its room', () => {
+  it('people unused: no people track, and the tags take its room', () => {
     const full = taskRowColumns(528)
     const cols = taskRowColumns(528, undefined, { ...all, people: false })
     expect(cols.people).toBe(0)
-    expect(cols.tags).toBe(full.tags)
-    expect(cols.laidOut).toBe(full.laidOut - full.people - TASK_ROW.gap)
+    expect(cols.tags).toBe(full.tags + full.people + TASK_ROW.gap)
+    expect(cols.laidOut).toBe(full.laidOut)
   })
 
   it('nothing used: no details at all, the title takes the row', () => {

@@ -15,7 +15,7 @@ import { idsByDate, type StatsContext } from './stats-context'
  * `#` picks (`RowRestrictions`), as a list grouped by them does. Pure.
  */
 
-/** A priority row's group: the Priority sort's exclusive groups (`priorityRank`). */
+/** A priority row's group: the exclusive priority groups (`priorityRank`). */
 export type PriorityGroupKey = 'focus' | 'urgentImportant' | 'urgent' | 'important'
 
 const PRIORITY_GROUP_KEYS: readonly PriorityGroupKey[] = ['focus', 'urgentImportant', 'urgent', 'important']

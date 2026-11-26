@@ -20,6 +20,18 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-25, second deployment
+
+### Changed
+
+- **The Priority sort is a ladder:** Urgent first, then Important, then Focus, each one splitting the one before.
+  Urgent + Important + Focus comes first, then Urgent + Important, Urgent + Focus, Urgent, Important + Focus,
+  Important, Focus, then no priority. Focus used to come first, whatever else a task was. Reviews sorted by priority
+  follow the same order.
+- Every list sort breaks a tie with the list's hand order, and the Planner's Unplanned tray with its own hand order.
+- **More tags show on a row** when the list's tasks have no dates, notes, status or people: the tags take that
+  room instead of the title. The Planner's Unplanned tray, which often has no dates, gains the most.
+
 ## 2026-11-25
 
 ### Changed
