@@ -150,3 +150,33 @@ test('Esc with the widget still in hand goes back to its layout, nothing written
   await expect.poll(async () => (await layoutNamed(page, 'Second')).cells.length).toBe(3)
   await expect.poll(async () => tabsOf(await layoutNamed(page, 'Second')).map((t) => t.id)).toContain('notesTab')
 })
+
+test('Save at a switch’s question with the widget still in hand calls the move off: both layouts as they were, a notice says so', async ({ page }) => {
+  const third = { name: 'Third', table: { areas: ['t'], cells: [{ id: 't', tabs: [{ id: 'thirdNotes', kind: 'notes' as const }] }] } }
+  await seedWorkspace(page, { ...SEED, layouts: [...(SEED.layouts ?? []), third] })
+  const before = await layouts(page)
+  await pickFromWidgetMenu(page, 'notesTab', 'Move to layout', 'Second')
+  await expect(layoutEditBar(page)).toBeVisible()
+  // An edit that isn't the placing: the draft has changes, so leaving asks.
+  const menu = await openCellLayoutMenu(page, 'x')
+  await menu.getByRole('menuitem', { name: 'Insert', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New cell right', exact: true }).click()
+  await expect(page.locator('[data-ws-table] [data-ws-cell]')).toHaveCount(3)
+
+  // The palette's Go to Layout › Third.
+  const field = page.getByPlaceholder(/Find tasks, commands|Type to filter/)
+  await page.keyboard.press('Control+k')
+  await expect(field).toBeFocused()
+  await field.pressSequentially('go to lay')
+  await expect(page.getByRole('listbox').getByRole('option').first()).toHaveText(/^Go to Layout/)
+  await page.keyboard.press('Enter')
+  await field.pressSequentially('Third')
+  await page.keyboard.press('Enter')
+  const question = page.getByRole('dialog', { name: 'Save changes to layout “Second”?' })
+  await question.getByRole('button', { name: 'Save' }).click()
+
+  await expect(layoutEditBar(page)).toHaveCount(0)
+  await expectOpenLayout(page, 'Third')
+  await expect(page.getByText('Nothing moved. Place the widgets before saving to move them.')).toBeVisible()
+  expect((await layouts(page)).map((l) => [l.name, l.cells])).toEqual(before.map((l) => [l.name, l.cells]))
+})

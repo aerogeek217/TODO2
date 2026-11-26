@@ -230,6 +230,9 @@ export function listsHeldByEdit(s: Pick<WorkspaceState, 'editing' | 'working' | 
 /** What the mode's own undo keeps at most. */
 const EDIT_UNDO_MAX = 100
 
+/** Save at a leave's question while Move / Copy to layout's widgets are still in hand: the move called off. */
+const NOTHING_MOVED_NOTICE = 'Nothing moved. Place the widgets before saving to move them.'
+
 /**
  * Workspace layouts: the stored layouts and the open one. **Every edit is
  * saved at once** (layout autosave): nothing is ever unsaved.
@@ -1197,6 +1200,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   }
 
+  /**
+   * Move / Copy to layout called off with the widgets still in hand: the
+   * draft discarded, nothing written; `backToSource`, the source opened
+   * again; a layout made for the move deleted once it is no longer open.
+   */
+  async function callOffIncoming(session: LayoutEditSession, incoming: IncomingTransfer, backToSource: boolean): Promise<void> {
+    get().discardEdit()
+    if (backToSource) await get().load(incoming.sourceLayoutId)
+    if (incoming.madeLayout && get().activeLayoutId !== session.layoutId) await get().delete(session.layoutId)
+  }
+
   /** Turns the mode on: `session` with `draft` as the working copy, registered as a layout-wide editor. */
   function beginSession(session: LayoutEditSession, draft: Layout): void {
     mode.unregister?.()
@@ -1542,6 +1556,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!session || !working) return session == null
       if (refusedByReplaceHold()) return false
       if (session.incoming && incomingPlaced(working, session.incoming)) return finishTransfer(session, session.incoming)
+      if (session.incoming) {
+        // Save asked by a leave while the widgets wait (Done is off till they are placed): the move is
+        // called off as Cancel calls it off — nothing written, a layout made for it deleted —, and the
+        // leave goes on. Only a made layout, which is the open one, needs the source opened first.
+        await callOffIncoming(session, session.incoming, session.incoming.madeLayout === true)
+        useUndoStore.getState().notify(NOTHING_MOVED_NOTICE)
+        return true
+      }
       endSession()
       // The lists it made that the draft doesn't show go first: the commit's
       // write would take them into its undo step, which would bring back
@@ -1563,10 +1585,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const incoming = session.incoming
       if (incoming) {
         // Move / Copy to layout: back to the source, nothing written (a layout made for it deleted again).
-        get().discardEdit()
-        void get().load(incoming.sourceLayoutId).then(() => {
-          if (incoming.madeLayout && get().activeLayoutId !== session.layoutId) void get().delete(session.layoutId)
-        })
+        void callOffIncoming(session, incoming, true)
         return
       }
       const changed = layoutEditChanged(get())

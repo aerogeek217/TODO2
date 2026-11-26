@@ -31,6 +31,9 @@ History before 2026-11-19 is in the git log.
 - A link in a task's notes whose address holds a `*` or a backtick copies as one whole link, instead of breaking
   where italics began.
 - Double-clicking a Planner row no longer opens its task and closes it again at once.
+- Leaving a layout during **Move to layout** before the widgets are placed, and choosing **Save**, no longer saves
+  the layout without them or leaves behind a layout made for them: the move is called off, both layouts stay as
+  they were, and a notice says nothing moved.
 - In Edit layout, **More** in the widget tray is never cut off in a narrow window, and a short row's header hides
   its `fit` / `folded` mark instead of cutting it mid-word.
 - The Neglect map's axis labels no longer run into each other in a small map: the due-soon mark (`+3d`) and the
