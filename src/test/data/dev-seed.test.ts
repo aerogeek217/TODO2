@@ -193,7 +193,7 @@ describe('dev seed generator', () => {
     const neglect = tabs.filter((t) => t.kind === 'neglect')
     expect(neglect).toHaveLength(1)
     const projectTagIds = seed.tags.filter((t) => t.name.startsWith('Project: ')).map((t) => t.id)
-    expect(neglect[0]?.config).toEqual({ colourBy: { kind: 'tags', tagIds: projectTagIds }, untouchedDays: 14 })
+    expect(neglect[0]?.config).toEqual({ colourBy: { kind: 'tags', tagIds: projectTagIds } })
     for (const layout of seed.layouts) {
       const picked = pickLayoutBody(JSON.parse(JSON.stringify(layout)) as RawLayoutBody)
       expect(picked.fixes, layout.name).toEqual([])

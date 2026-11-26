@@ -58,8 +58,8 @@ describe('widget kinds', () => {
     expect(createTab('numbers', 'e', { numberItemId: 'n' })).toEqual({ id: 'e', kind: 'numbers', config: { items: [{ id: 'n', name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' }] }, icon: { kind: 'line', key: 'number' } })
 
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
-    expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 }, icon: { kind: 'line', key: 'scatter' } })
-    expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
+    expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] } }, icon: { kind: 'line', key: 'scatter' } })
+    expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] } })
     // Work clusters has no settings.
     expect(createTab('clusters', 'h')).toEqual({ id: 'h', kind: 'clusters', config: {}, icon: { kind: 'line', key: 'clusters' } })
     // A List board: the lists picked, none yet.

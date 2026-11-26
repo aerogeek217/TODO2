@@ -1,16 +1,10 @@
-import {
-  NEGLECT_UNTOUCHED_CHOICES,
-  type NeglectColourBy,
-  type NeglectTab,
-} from '../../../models/workspace-layout'
+import type { NeglectColourBy, NeglectTab } from '../../../models/workspace-layout'
 import type { Tag } from '../../../models'
 import { useTagStore } from '../../../stores/tag-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { projectTagIds } from '../../../utils/neglect-map'
 import type { MenuEntry } from '../../shared/MenuPopover'
-import { knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_PX, tagPickEntries } from '../glance/menu-entries'
-
-const UNTOUCHED_WIDTH_PX = 200
+import { knownTagCount, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_PX, tagPickEntries } from '../glance/menu-entries'
 
 /** `Tags (2)` / `People` / `None`: the Color by item's value (the picked tags that still exist). */
 function colourByLabel(colourBy: NeglectColourBy, tags: readonly Tag[]): string {
@@ -19,22 +13,17 @@ function colourByLabel(colourBy: NeglectColourBy, tags: readonly Tag[]): string 
   return `Tags (${knownTagCount(colourBy.tagIds, tags)})`
 }
 
-/** `14 days` (`1 day`). */
-function untouchedLabel(days: number): string {
-  return days === 1 ? '1 day' : `${days} days`
-}
-
 /**
  * A Neglect map tab's menu items, listed first: **Color by ›** (Tags,
  * People or None, then a checkbox per tag — ticking one colours by tags;
- * the submenu stays open while tags are ticked) and **Untouched after ›**
- * (the threshold). Both are layout config: a change is saved at once as
- * one undo step, as any tab setting.
+ * the submenu stays open while tags are ticked). Layout config: a change is
+ * saved at once as one undo step, as any tab setting. What counts as
+ * untouched is Settings' Stale after, so the map has no threshold of its own.
  */
 export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] {
   const tags = useTagStore((s) => s.tags)
   if (!tab) return []
-  const { colourBy, untouchedDays } = tab.config
+  const { colourBy } = tab.config
   const patch = (p: Partial<NeglectTab['config']>) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'neglect', p)
   const pickedTags = colourBy.kind === 'tags' ? colourBy.tagIds : []
   const kinds: Array<{ kind: NeglectColourBy['kind']; label: string; next: () => NeglectColourBy }> = [
@@ -60,10 +49,6 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
     { kind: 'separator' },
     { kind: 'note', text: 'A task with several picked tags takes the first one’s color.' },
   ]
-  // A threshold set outside the offered choices (e.g. by an import) still shows.
-  const choices = NEGLECT_UNTOUCHED_CHOICES.includes(untouchedDays)
-    ? NEGLECT_UNTOUCHED_CHOICES
-    : [...NEGLECT_UNTOUCHED_CHOICES, untouchedDays].sort((a, b) => a - b)
   return [
     {
       kind: 'item',
@@ -73,13 +58,5 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
       childrenWidth: TAG_PICKS_WIDTH_PX,
       childrenMaxHeight: TAG_PICKS_MAX_HEIGHT_PX,
     },
-    settingEntry(
-      'Untouched after',
-      choices.map((d) => ({ value: d, label: untouchedLabel(d) })),
-      untouchedDays,
-      (d) => patch({ untouchedDays: d }),
-      'Days since a task last changed. Due soon or late and untouched this long is Slipping.',
-      UNTOUCHED_WIDTH_PX,
-    ),
   ]
 }

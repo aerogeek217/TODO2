@@ -302,7 +302,7 @@ describe('every layout write path of the workspace store stores rows import acce
       await expectStoredValid('Calendar date types')
     }
     const neglect = await add('neglect', layoutId)
-    for (const patch of [{ colourBy: { kind: 'people' as const } }, { colourBy: { kind: 'tags' as const, tagIds: [2, 9] } }, { colourBy: { kind: 'none' as const } }, { untouchedDays: 7 }, { untouchedDays: 30 }]) {
+    for (const patch of [{ colourBy: { kind: 'people' as const } }, { colourBy: { kind: 'tags' as const, tagIds: [2, 9] } }, { colourBy: { kind: 'none' as const } }]) {
       ws().patchTabConfig(neglect, 'neglect', patch)
       await expectStoredValid(`Neglect map ${JSON.stringify(patch)}`)
     }

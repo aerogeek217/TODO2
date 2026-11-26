@@ -76,7 +76,7 @@ describe('glance widgets share their data', () => {
 
   it('a Neglect map beside them reads the same base: still one screen-filter pass', () => {
     const tabs: GlanceTab[] = [numberTab('n'), createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab]
-    const neglect: NeglectTab = { id: 'm', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } }
+    const neglect: NeglectTab = { id: 'm', kind: 'neglect', config: { colourBy: { kind: 'none' } } }
     render(
       <DndContext>
         {tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}

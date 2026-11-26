@@ -1156,7 +1156,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
           kind: 'neglect',
-          config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
+          config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] } },
         }, {
           id: 'tab-clusters',
           kind: 'clusters',

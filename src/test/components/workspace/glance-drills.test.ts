@@ -44,7 +44,7 @@ describe('the task dialog service builds no glance payload', () => {
     expect(slippingDrill([2, 1], 14)).toEqual({
       title: 'Slipping',
       glyph: 'stale',
-      description: 'Open tasks due soon or late and not changed in 14 days or more.',
+      description: 'Open tasks due or to follow up soon or late and not changed in 14 days or more.',
       source: { kind: 'todos', todoIds: [2, 1] },
     })
   })

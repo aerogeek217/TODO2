@@ -16,8 +16,6 @@ import {
   type WidgetKind,
   DEFAULT_CALENDAR_DATE_TYPES,
   DEFAULT_WEIGHT,
-  DEFAULT_NEGLECT_UNTOUCHED_DAYS,
-  isNeglectUntouchedDays,
   type NeglectColourBy,
   type NeglectTabConfig,
   type CalendarTab,
@@ -180,12 +178,14 @@ function isNeglectColourBy(v: unknown): boolean {
 
 /**
  * A Neglect map tab's config with only the model's keys: a bad `colourBy`
- * becomes `none` (a tag list keeps its ids that are numbers), a bad
- * threshold becomes the default; a repeated tag is kept once. `fixed` says
- * whether anything but a repeat or a stray key was dropped or reset.
+ * becomes `none` (a tag list keeps its ids that are numbers); a repeated
+ * tag is kept once. A stored `untouchedDays` (the tab's own threshold,
+ * before the map read Settings' Stale after) goes quietly, as any stray
+ * key. `fixed` says whether anything but a repeat or a stray key was
+ * dropped or reset.
  */
 function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixed: boolean } {
-  let fixed = !isNeglectColourBy(config.colourBy)
+  const fixed = !isNeglectColourBy(config.colourBy)
   let colourBy: NeglectColourBy = { kind: 'none' }
   const raw = config.colourBy
   if (isRecord(raw)) {
@@ -195,10 +195,7 @@ function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixed: bool
       colourBy = { kind: 'people' }
     }
   }
-  let untouchedDays = DEFAULT_NEGLECT_UNTOUCHED_DAYS
-  if (isNeglectUntouchedDays(config.untouchedDays)) untouchedDays = config.untouchedDays
-  else fixed = true
-  return { config: { colourBy, untouchedDays }, fixed }
+  return { config: { colourBy }, fixed }
 }
 
 /**
@@ -241,7 +238,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'neglect':
       if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
-      if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
     // The Numbers: one Number or more, each checked as a Number (its id in `checkTabs`).
     case 'numbers': {

@@ -15,7 +15,7 @@ const item = (entries: readonly MenuEntry[] | undefined, label: string) =>
   (entries ?? []).find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
 
 const neglectTab = (config: Partial<NeglectTab['config']>): NeglectTab =>
-  ({ id: 'map', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 14, ...config } })
+  ({ id: 'map', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, ...config } })
 
 describe('the shared tag picks', () => {
   it('a checkbox per tag in the tags’ order; a tick adds at the end or takes out', () => {
@@ -48,7 +48,7 @@ describe('the Neglect map’s tag-pick submenu', () => {
     expect(item(colourBy.children, 'Project: Beta').checked).toBe(true)
   })
 
-  it('the Neglect map: its tag ticks colour by tags; Untouched after is a setting submenu', () => {
+  it('the Neglect map: its tag ticks colour by tags; it has no threshold of its own', () => {
     const patchTabConfig = vi.fn()
     useWorkspaceStore.setState({ patchTabConfig })
     useTagStore.setState({ tags: [ATLAS, BETA] })
@@ -66,12 +66,7 @@ describe('the Neglect map’s tag-pick submenu', () => {
     expect(item(colourBy.children, 'Project: Atlas').checked).toBe(false)
     item(colourBy.children, 'Project: Beta').onSelect!()
     expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { colourBy: { kind: 'tags', tagIds: [2] } })
-    const untouched = item(result.current, 'Untouched after')
-    expect(untouched.note).toBe('14 days')
-    expect(untouched.childrenWidth).toBe(200)
-    item(untouched.children, '14 days').onSelect!()
-    expect(patchTabConfig).toHaveBeenCalledTimes(1)
-    item(untouched.children, '30 days').onSelect!()
-    expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { untouchedDays: 30 })
+    // Untouched is Settings' Stale after: no menu item of its own.
+    expect(item(result.current, 'Untouched after')).toBeUndefined()
   })
 })

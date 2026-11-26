@@ -87,7 +87,7 @@ Specs that rest on these seeds:
   - a click opening the editor;
   - a lasso drag selecting the corner's dots into the bulk bar;
   - the screen filter narrowing the dots;
-  - the cell menu's Color by and Untouched after;
+  - the cell menu's Color by, and no threshold of its own;
   - the phone's stacked layout.
 
 ### The table and the cell menu

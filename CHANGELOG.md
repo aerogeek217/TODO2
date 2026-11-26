@@ -28,6 +28,12 @@ History before 2026-11-19 is in the git log.
 
 ### Changed
 
+- **The Neglect map places a task by its due date or its next follow-up, whichever comes first**, so a task you
+  have to chase slips too. A task with only a planned day is left off the map: the Planner holds it.
+- The Neglect map's untouched line is Settings' **Stale after**, the same days that fade a stale row. Its own
+  **Untouched after** is gone. With Stale after off, nothing on the map slips, drifts or is forgotten.
+- On the Neglect map, the bottom-left corner is now **Later** (it read Planned, like the Planner), and the strip
+  under the plot is **No dates**.
 - The light theme's teal is a little deeper, so white text on its buttons and chips is easier to read.
 - The tally in the top bar, the Planner's fold chevron and the Neglect map's dots are easier to click: each
   takes a press at least 24px across, drawn as before.

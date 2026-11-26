@@ -30,7 +30,7 @@ vi.mock('../../../components/shared/use-tooltip', async (importOriginal) => {
 
 const TODAY = new Date(2026, 10, 10, 10)
 const day = (offset: number, hour = 0) => new Date(2026, 10, 10 + offset, hour)
-const TAB: NeglectTab = { id: 'map', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } }
+const TAB: NeglectTab = { id: 'map', kind: 'neglect', config: { colourBy: { kind: 'none' } } }
 const TITLES = ['Late and old', 'Soon and old', 'Late but fresh', 'Later and fresh', 'No date, old']
 
 const chart = () => document.querySelector<HTMLElement>('[data-neglect-chart]')!

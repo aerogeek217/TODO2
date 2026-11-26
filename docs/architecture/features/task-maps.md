@@ -4,17 +4,24 @@ The task maps are whole widgets that draw many tasks at once: the Neglect map (k
 
 ## Neglect map
 
-It plots every open task the screen filter keeps by days untouched (`modifiedAt`, capped at 60) against days until due (14 late … 30 ahead). The pure placement is in `utils/neglect-map`.
+It plots every open task the screen filter keeps by days untouched (`modifiedAt`, capped at 60) against days until its date (14 late … 30 ahead). The pure placement is in `utils/neglect-map`.
 
-The axes' marks: `14d late` · `Today` · `+Nd` (the due-soon line) · `+30d` down, `0d` · the threshold · `30d` · `60d+ untouched` across. `+Nd` and `30d` give way where their label would come within 4px of a neighbor's in the plot as measured (`utils/neglect-labels.uncrowdedMarks`); the others always show.
+- **A task's date** is the earlier of its due date and its next follow-up (the due date on a tie). The row and the dot's tooltip name the one that placed it: `2d late`, `due in 3d`, `follow-up today`, `follow-up 2d late`.
+- **A task whose only date is a planned day is left off the map**: no dot, no zone, no count. The Planner holds it.
+- **Untouched is Settings' Stale after** (`staleAfterDays`, read live), the filter word `stale` ([Filters](filters.md#the-words-that-read-settings)). The map has no threshold of its own.
+- **Soon is Settings' due-soon range**, the filter words `due soon` / `followup soon`: late, or within the range (`utils/urgency.isDueNear`).
+
+The axes' marks: `14d late` · `Today` · `+Nd` (the due-soon line) · `+30d` down, `0d` · Stale after · `30d` · `60d+ untouched` across. `+Nd` and `30d` give way where their label would come within 4px of a neighbor's in the plot as measured (`utils/neglect-labels.uncrowdedMarks`); the others always show.
+
+Stale after's line, its mark, the shaded Slipping corner and the strip's Forgotten part are drawn only while it is on and under the 60-day cap (`staleLineShown`). Past the cap a task is still stale by its real days, on the cap. With Stale after `0` (off) nothing is stale, so nothing is Slipping, Drifting or Forgotten.
 
 ### Zones
 
-- A task due soon (Settings' due-soon range) or late, and untouched for the tab's threshold ([Config](#config)), is **Slipping**: the shaded corner.
-- The other corners are In hand, Planned and Drifting.
-- A strip under the plot holds the tasks without a due date. They are **Forgotten** once untouched.
+- A task due or to follow up soon or late, and stale, is **Slipping**: the shaded corner.
+- The other corners are In hand (soon, not stale), **Later** (later, not stale) and Drifting (later, stale).
+- A strip under the plot holds the tasks with neither date. They are **Forgotten** once stale.
 - Each zone's word carries its count and opens its tasks as a list in the task dialog (`glance-drills.neglectZoneDrill`). A zone with none is plain words.
-- The words are the four corners', and the strip's No due date (every task without one) and Forgotten.
+- The words are the four corners', and the strip's **No dates** (every task in it) and Forgotten.
 
 ### Slipping list
 
@@ -28,12 +35,12 @@ The axes' marks: `14d late` · `Today` · `+Nd` (the due-soon line) · `+30d` do
 
 ### Config
 
-The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy` and `untouchedDays`, both set in its ⋯. The tab has no view state.
+The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy`, set in its ⋯. The tab has no view state.
 
 - **Color by** is `colourBy` (`NeglectColourBy`): the picked tags (`{ kind: 'tags', tagIds }`), People (`{ kind: 'people' }`) or None (`{ kind: 'none' }`).
 - A deleted tag stays in `tagIds` and stops coloring, as in a filter.
-- The threshold is `untouchedDays`: a whole number from 1 to 59 (`isNeglectUntouchedDays`, `NEGLECT_UNTOUCHED_MAX`), so its line stays left of the 60-day cap. The menu offers 7, 14, 21, 30 and 45 (`NEGLECT_UNTOUCHED_CHOICES`).
-- A new map (`defaultNeglectConfig`) colors by the `Project: …` tags at 14 days (`DEFAULT_NEGLECT_UNTOUCHED_DAYS`). The workspace store passes those tags as `TabSeed.neglectTagIds` (`utils/neglect-map.projectTagIds`).
+- A new map (`defaultNeglectConfig`) colors by the `Project: …` tags. The workspace store passes those tags as `TabSeed.neglectTagIds` (`utils/neglect-map.projectTagIds`).
+- The layout repair (`data/layout-shape.pickNeglectConfig`) keeps only the model's keys. A stored `untouchedDays` is dropped quietly, with no repair notice and no schema step.
 
 ### Names beside dots
 

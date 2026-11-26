@@ -150,11 +150,11 @@ describe('structural edits are saved at once, each an undo step', () => {
     await seedAndInit(twoColumns())
     const tabId = ws().addWidget('neglect', { kind: 'cell', cellId: 'kb' })
     const tabs = () => ws().working!.cells.flatMap((k) => k.tabs)
-    expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 }, icon: { kind: 'line', key: 'scatter' } })
+    expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 6] } }, icon: { kind: 'line', key: 'scatter' } })
     ws().changeTabKind('a1', 'neglect')
-    expect(tabs().find((t) => t.id === 'a1')?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 })
+    expect(tabs().find((t) => t.id === 'a1')?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [4, 6] } })
     const seeded = ws().addWidget('neglect', { kind: 'cell', cellId: 'kb' }, { neglectTagIds: [5] })
-    expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [5] }, untouchedDays: 14 })
+    expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [5] } })
   })
 
   it('split, insert, merge and close: stored at once; undone one by one, newest first', async () => {

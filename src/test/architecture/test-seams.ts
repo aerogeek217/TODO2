@@ -141,7 +141,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/neglect-labels.ts': [
     'NEGLECT_LABEL_GAP_PX', 'NEGLECT_LABEL_HEIGHT_PX', 'NEGLECT_LABEL_MAX_PX', 'NEGLECT_LABEL_MIN_PX', 'NEGLECT_LABEL_WORK_MAX',
   ],
-  'utils/neglect-map.ts': ['isDueNear', 'NEGLECT_JITTER', 'NeglectFields', 'neglectZone'],
+  'utils/neglect-map.ts': ['NEGLECT_JITTER', 'NeglectFields', 'neglectZone'],
   'utils/notes-preview.ts': ['NOTES_PREVIEW_MAX_CHARS', 'NOTES_PREVIEW_MAX_LINES', 'notesPreviewLines'],
   'utils/planner.ts': [
     'inPlanner', 'PLANNER_DELAYED_KEY', 'PlannerConflict',

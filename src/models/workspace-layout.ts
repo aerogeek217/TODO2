@@ -308,30 +308,17 @@ export type NeglectColourBy =
   | { kind: 'people' }
   | { kind: 'none' }
 
-/** A Neglect map tab's settings (layout config, saved with the layout). */
+/**
+ * A Neglect map tab's settings (layout config, saved with the layout). What
+ * counts as untouched is Settings' Stale after, not the tab's.
+ */
 export interface NeglectTabConfig {
   colourBy: NeglectColourBy
-  /** A task untouched (`modifiedAt`) this many days or more counts as neglected. */
-  untouchedDays: number
 }
 
-/** Untouched after this many days, by default. */
-export const DEFAULT_NEGLECT_UNTOUCHED_DAYS = 14
-
-/** The thresholds the tab menu offers. */
-export const NEGLECT_UNTOUCHED_CHOICES: readonly number[] = [7, 14, 21, 30, 45]
-
-/** The largest threshold kept: below the map's 60-day cap, so its line stays on the plot. */
-const NEGLECT_UNTOUCHED_MAX = 59
-
-/** A threshold the tab keeps: a whole number of days, 1 – `NEGLECT_UNTOUCHED_MAX`. */
-export function isNeglectUntouchedDays(v: unknown): v is number {
-  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= NEGLECT_UNTOUCHED_MAX
-}
-
-/** A new Neglect map's config: colour by `tagIds` (the `Project: …` tags, which the caller picks), 14 days. */
+/** A new Neglect map's config: colour by `tagIds` (the `Project: …` tags, which the caller picks). */
 function defaultNeglectConfig(tagIds: readonly number[] = []): NeglectTabConfig {
-  return { colourBy: { kind: 'tags', tagIds: [...tagIds] }, untouchedDays: DEFAULT_NEGLECT_UNTOUCHED_DAYS }
+  return { colourBy: { kind: 'tags', tagIds: [...tagIds] } }
 }
 
 interface TabOf<K extends WidgetKind, C, V> {
