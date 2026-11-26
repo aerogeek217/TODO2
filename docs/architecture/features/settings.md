@@ -50,6 +50,7 @@ Each is a store field. Its row has the field's name unless one is given.
 - `colors: ThemedColors { dark, light }` over the twelve `ThemeColors` keys, with `customizedColors`: which of them are overrides, the `color.<theme>.<key>` rows. The two are one entry, so a rollback or a reset restores both.
   - A picker writes on every move (`setColor`).
   - `resetColor` removes one color's override: a row's Reset in Theme colors. A priority then follows the accent / Danger / Follow up again.
+  - An accent override also sets its hover (`--color-accent-dim`) and the accent as text (`--color-accent-text`: the color itself in dark, 76 % of it with black in light). Without one, the light theme's accent text is its own teal, `#24756d`.
 - `ThemeColors` and `ThemeName` are re-exported from `models/theme-colors`, where `ThemedColors` and `DEFAULT_THEMED_COLORS` also live.
 
 ### New tasks and follow-ups

@@ -48,7 +48,7 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     important: '#f5c842',
   },
   light: {
-    accent: '#2f9a8f',
+    accent: '#1f7a70',
     appBg: '#f7f6f3',
     surface: '#fcfbf9',
     border: '#dedad4',
@@ -57,7 +57,7 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     warning: '#d08a12',
     star: '#826600',
     deadline: '#a32cab',
-    focus: '#2f9a8f',
+    focus: '#1f7a70',
     urgent: '#d94a43',
     important: '#826600',
   },
@@ -109,8 +109,8 @@ export const PRIORITY_TINT_FILL = '12%'
 
 /**
  * How much of a priority's own colour its token's text is in each theme, the
- * rest black (`null`: the colour as it is) — what the stylesheet does to the
- * accent for text (`--color-accent-text`, which Focus's token follows with
+ * rest black (`null`: the colour as it is) — what an accent override does to
+ * the accent for text (`--color-accent-text`, which Focus's token follows with
  * no override: the light theme darkens it for contrast on its tint).
  */
 const PRIORITY_TINT_TEXT_SHARE: Readonly<Record<ThemeName, string | null>> = { dark: null, light: '76%' }

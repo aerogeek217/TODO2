@@ -20,6 +20,10 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Changed
+
+- The light theme's teal is a little deeper, so white text on its buttons and chips is easier to read.
+
 ### Fixed
 
 - A link in a task's notes whose address holds a `*` or a backtick copies as one whole link, instead of breaking

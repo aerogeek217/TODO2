@@ -274,8 +274,8 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "color(srgb 0.140078 0.45898 0.426196)",
-      "box-shadow": "rgb(45, 125, 116) 0px 0px 0px 1px inset",
+      "color": "rgb(36, 117, 109)",
+      "box-shadow": "rgb(25, 99, 91) 0px 0px 0px 1px inset",
       "gap": "4px",
       "cursor": "default"
     },
@@ -408,8 +408,8 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "color(srgb 0.140078 0.45898 0.426196)",
-      "box-shadow": "rgb(45, 125, 116) 0px 0px 0px 1px inset",
+      "color": "rgb(36, 117, 109)",
+      "box-shadow": "rgb(25, 99, 91) 0px 0px 0px 1px inset",
       "gap": "4px",
       "cursor": "default"
     },
