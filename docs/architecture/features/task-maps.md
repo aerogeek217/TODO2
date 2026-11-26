@@ -23,6 +23,19 @@ Stale after's line, its mark, the shaded Slipping corner and the strip's Forgott
 - Each zone's word carries its count and opens its tasks as a list in the task dialog (`glance-drills.neglectZoneDrill`). A zone with none is plain words.
 - The words are the four corners', and the strip's **No dates** (every task in it) and Forgotten.
 
+### Review these
+
+Slipping, Drifting and Forgotten each have a **Review** button while they hold a task: a 22px icon beside the zone's word, shown while the pointer is on the map (always on a phone), and a `Review` button at the end of the list's header for the zone it shows. Named `Review the 4 slipping tasks`.
+
+- **It always opens the popup review** (`services/review-jump.jumpToPopupReview` → `widget-popup.openReviewPopup`), even when the layout has a Review widget, which keeps what it was reviewing.
+- **The filter is the zone as an expression** in the words that read Settings (`services/review.neglectZoneReviewFilter`), so the Review field shows it:
+  - Slipping: `(due soon or followup soon) and stale`;
+  - Drifting: `(due any or followup any) and not due soon and not followup soon and stale`;
+  - Forgotten: `no due and no followup and planned none and stale`.
+- Each hidden status that still exists adds `and not !Status`.
+- **The counts match the review.** The map and the review's live queue both start from the screen-filtered tasks (`useStatsBase().shown`), so the screen filter is in both alike. The review keeps its own sort.
+- The zone's word still opens its tasks in the task dialog.
+
 ### The list
 
 - The list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot. It is the medium face alone.

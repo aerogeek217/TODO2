@@ -3,6 +3,7 @@ import type { BreakdownColumn, BreakdownConfig } from '../models/chart-widgets'
 import { currentScreenFilter } from '../stores/screen-filter'
 import { listAsShownNow } from '../stores/list-draft-store'
 import { useListWidgetStore, type ReviewFilter, type ShownListSection } from '../stores/list-widget-store'
+import { useStatusStore } from '../stores/status-store'
 import { useTodoStore } from '../stores/todo-store'
 import { admitsCompleted, criteriaToPredicate, predicateToCriteria } from '../utils/filter-criteria'
 import { normalizeExpression, wholeExpression } from '../utils/filter-expression'
@@ -120,6 +121,43 @@ export function screenReviewFilter(): ReviewFilter {
   return reviewFilterOf(wholeExpression(criteriaToPredicate(currentScreenFilter())))
 }
 
+// ── A Neglect map zone ──────────────────────────────────────────────────────
+
+/** The Neglect map zones with a Review button. */
+export type NeglectReviewZone = 'slipping' | 'drifting' | 'forgotten'
+
+const STALE: FilterExpr = { kind: 'stale' }
+const DUE_SOON: FilterExpr = { kind: 'soon', field: 'deadline' }
+const FOLLOWUP_SOON: FilterExpr = { kind: 'soon', field: 'followup' }
+const dateIs = (field: 'deadline' | 'followup' | 'planned', match: 'set' | 'unset'): FilterExpr => ({ kind: 'date', field, match: { match } })
+const not = (item: FilterExpr): FilterExpr => ({ kind: 'not', item })
+
+/**
+ * Each zone as the words that read Settings say it, so the review keeps
+ * what the map counts and follows Settings as they change (`utils/neglect-map`):
+ * - Slipping: `(due soon or followup soon) and stale`;
+ * - Drifting: `(due any or followup any) and not due soon and not followup soon and stale`;
+ * - Forgotten: `no due and no followup and planned none and stale`.
+ */
+const NEGLECT_ZONE_TERMS: Record<NeglectReviewZone, readonly FilterExpr[]> = {
+  slipping: [{ kind: 'or', items: [DUE_SOON, FOLLOWUP_SOON] }, STALE],
+  drifting: [{ kind: 'or', items: [dateIs('deadline', 'set'), dateIs('followup', 'set')] }, not(DUE_SOON), not(FOLLOWUP_SOON), STALE],
+  forgotten: [dateIs('deadline', 'unset'), dateIs('followup', 'unset'), dateIs('planned', 'unset'), STALE],
+}
+
+/**
+ * A Neglect map zone's review (its words' and its list's Review): the zone
+ * as an expression, AND `not !Status` for each hidden status of the tab
+ * that still exists (a deleted one's id hides nothing on the map either).
+ * The popup review composes the screen filter as the map does (both start
+ * from `useStatsBase().shown`), so its queue is the zone's count.
+ */
+export function neglectZoneReviewFilter(zone: NeglectReviewZone, hiddenStatusIds: readonly number[] = []): ReviewFilter {
+  const known = new Set(useStatusStore.getState().statuses.flatMap((s) => (s.id != null ? [s.id] : [])))
+  const hidden = hiddenStatusIds.filter((id) => known.has(id)).map((id): FilterExpr => not({ kind: 'status', id }))
+  return reviewFilterOf(allOf([...NEGLECT_ZONE_TERMS[zone], ...hidden]))
+}
+
 // ── A Breakdown row ─────────────────────────────────────────────────────────
 
 /** A date range of `field`, each end a day offset from today (null: open). */
@@ -138,7 +176,6 @@ function daysRange(field: 'deadline' | 'created', start: number | null, end: num
 const URGENT: FilterExpr = { kind: 'priority', value: 'urgent' }
 const IMPORTANT: FilterExpr = { kind: 'priority', value: 'important' }
 const FOCUS: FilterExpr = { kind: 'priority', value: 'focus' }
-const not = (item: FilterExpr): FilterExpr => ({ kind: 'not', item })
 
 /** Each priority row: the exclusive priority groups (`utils/markers.priorityRank`). */
 const PRIORITY_TERMS: Record<PriorityGroupKey, FilterExpr> = {

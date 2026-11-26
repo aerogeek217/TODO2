@@ -10,6 +10,8 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import type { WidgetFace } from '../../../utils/widget-face'
 import type { StatsContext } from '../../../services/stats/stats-context'
+import { neglectZoneReviewFilter, type NeglectReviewZone } from '../../../services/review'
+import { jumpToPopupReview } from '../../../services/review-jump'
 import { neglectZoneDrill } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -38,6 +40,7 @@ import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { sharedMemo } from '../../../utils/shared-memo'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
 import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
+import { ReviewIcon } from '../../shared/icons'
 import { useTooltip } from '../../shared/use-tooltip'
 import { appTextWidth } from '../../task/text-width'
 import { ListBulkBar } from '../list/ListBulkBar'
@@ -84,9 +87,15 @@ const dotRadius = (marked: boolean, followupLate: boolean) => (marked ? 6.5 : 4.
 /** A Slipping badge's box (one digit: `SLIPPING_LISTED` is 9). */
 const BADGE_PX = 14
 
-/** The box of one of the plot's own words (11px bold caps, 0.08em apart), `at` its corner of a field `w` × `h`. */
-function wordRect(word: string, at: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', w: number, h: number, top = 0): LabelRect {
-  const width = appTextWidth(word.toUpperCase(), LABEL_FONT_PX, 700) + word.length * LABEL_FONT_PX * 0.08 + 4
+/** A zone word's Review button and the gap before it, px (`.zoneReview`). */
+const ZONE_REVIEW_PX = 22 + 6
+
+/**
+ * The box of one of the plot's own words (11px bold caps, 0.08em apart), `at`
+ * its corner of a field `w` × `h`; `extra` px wider for a Review button beside it.
+ */
+function wordRect(word: string, at: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', w: number, h: number, top = 0, extra = 0): LabelRect {
+  const width = appTextWidth(word.toUpperCase(), LABEL_FONT_PX, 700) + word.length * LABEL_FONT_PX * 0.08 + 4 + extra
   const height = LABEL_FONT_PX + 3
   const left = at.endsWith('left') ? 0 : w - width
   const y = at.startsWith('top') ? top : h - height
@@ -119,6 +128,63 @@ function ZoneWord({ zone, text, count, className, onOpen, testId }: {
     >
       {text}
     </button>
+  )
+}
+
+/** `the 3 slipping tasks` / `the forgotten task`. */
+function zoneTasks(zone: NeglectReviewZone, count: number): string {
+  return count === 1 ? `the ${zone} task` : `the ${count} ${zone} tasks`
+}
+
+/**
+ * A zone's Review: opens the popup review on the zone written as an
+ * expression (`neglectZoneReviewFilter`), whatever the layout holds. Beside
+ * a zone word it is a 22px icon, shown while the pointer is on the map (and
+ * always on a phone); over the list it reads `Review`.
+ */
+function ZoneReviewButton({ zone, count, onReview, labeled = false }: {
+  zone: NeglectReviewZone
+  count: number
+  onReview: (zone: NeglectReviewZone) => void
+  labeled?: boolean
+}) {
+  const name = `Review ${zoneTasks(zone, count)}`
+  const { triggerProps, tooltip } = useTooltip(name)
+  return (
+    <button
+      type="button"
+      className={labeled ? styles.listReview : styles.zoneReview}
+      aria-label={name}
+      data-neglect-review={zone}
+      {...triggerProps}
+      onClick={() => onReview(zone)}
+    >
+      <ReviewIcon size={labeled ? 14 : 13} />
+      {labeled && <span aria-hidden="true">Review</span>}
+      {tooltip}
+    </button>
+  )
+}
+
+/**
+ * A reviewable zone's word (Slipping, Drifting, Forgotten) with its Review
+ * button beside it while it holds any task, placed in its corner by
+ * `className`.
+ */
+function ZoneWithReview({ zone, text, count, className, onOpen, onReview, testId }: {
+  zone: NeglectReviewZone
+  text: string
+  count: number
+  className: string
+  onOpen: (zone: NeglectZone) => void
+  onReview: (zone: NeglectReviewZone) => void
+  testId?: string
+}) {
+  return (
+    <span className={`${className} ${styles.zoneGroup}`}>
+      <ZoneWord zone={zone} text={text} count={count} className={styles.groupWord ?? ''} onOpen={onOpen} testId={testId} />
+      {count > 0 && <ZoneReviewButton zone={zone} count={count} onReview={onReview} />}
+    </span>
   )
 }
 
@@ -388,6 +454,18 @@ function useNeglectMap(tab: NeglectTab): NeglectMap<PersistedTodoItem> {
 }
 
 /**
+ * A zone's Review: always the popup review (never a layout's Review
+ * widget), on the zone as an expression with the tab's hidden statuses left
+ * out (`neglectZoneReviewFilter`).
+ */
+function useZoneReview(tab: NeglectTab): (zone: NeglectReviewZone) => void {
+  const { hiddenStatusIds } = tab.config
+  return useCallback((zone: NeglectReviewZone) => {
+    void jumpToPopupReview(neglectZoneReviewFilter(zone, hiddenStatusIds))
+  }, [hiddenStatusIds])
+}
+
+/**
  * The map's small and medium faces (D25 R). Small: the Slipping count, of
  * the open tasks placed — no 7-day change: what a task's untouched days
  * were a week ago isn't kept (a task touched since has lost its older
@@ -398,11 +476,12 @@ function NeglectFace({ tab, face }: { tab: NeglectTab; face: Exclude<WidgetFace,
   const map = useNeglectMap(tab)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const [listZone, setListZone] = useListZone(map)
+  const reviewZone = useZoneReview(tab)
   const slipping = map.slipping.length
   if (face === 'medium') {
     return (
       <div className={`${styles.widget} ${styles.stacked} ${styles.face}`} data-neglect-face="medium" data-neglect-face-tab={tab.id}>
-        <ZoneList map={map} zone={listZone} onZone={setListZone} staleAfterDays={staleAfterDays} />
+        <ZoneList map={map} zone={listZone} onZone={setListZone} onReview={reviewZone} staleAfterDays={staleAfterDays} />
       </div>
     )
   }
@@ -517,6 +596,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     useUIStore.getState().showTaskDialog(neglectZoneDrill(zone, inZone.map((p) => p.todo.id), staleAfterDays))
   }, [map, staleAfterDays])
   const zoneText = (zone: NeglectZone) => `${ZONE_NAMES[zone]} ${map.counts[zone]}`
+  const reviewZone = useZoneReview(tab)
 
   // The names that fit beside their dots (`placeNeglectLabels`): the Slipping tasks first, in their list's
   // order, then the flagged ones, then the rest — on the plot and on the strip, each in its own field.
@@ -538,13 +618,15 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     const { width: sw, height: sh } = stripSize
     const noDueCount = map.counts.noDates + map.counts.forgotten
     const word = (zone: NeglectZone) => `${ZONE_NAMES[zone]} ${map.counts[zone]}`
+    // A reviewable zone's word has its Review button beside it while it holds any task.
+    const review = (zone: NeglectReviewZone) => (map.counts[zone] > 0 ? ZONE_REVIEW_PX : 0)
     return {
       plotLabels: placeNeglectLabels(dotsOf(plotted, fw, fh, false), fieldSize, [
-        wordRect(word('inHand'), 'top-left', fw, fh), wordRect(word('slipping'), 'top-right', fw, fh),
-        wordRect(word('later'), 'bottom-left', fw, fh), wordRect(word('drifting'), 'bottom-right', fw, fh),
+        wordRect(word('inHand'), 'top-left', fw, fh), wordRect(word('slipping'), 'top-right', fw, fh, 0, review('slipping')),
+        wordRect(word('later'), 'bottom-left', fw, fh), wordRect(word('drifting'), 'bottom-right', fw, fh, 0, review('drifting')),
       ]),
       stripLabels: placeNeglectLabels(dotsOf(strip, sw, sh, true), stripSize, [
-        wordRect(`No dates · ${noDueCount}`, 'top-left', sw, sh, 3), wordRect(`Forgotten · ${map.counts.forgotten}`, 'top-right', sw, sh, 3),
+        wordRect(`No dates · ${noDueCount}`, 'top-left', sw, sh, 3), wordRect(`Forgotten · ${map.counts.forgotten}`, 'top-right', sw, sh, 3, review('forgotten')),
       ]),
     }
   }, [map, plotted, strip, badges, today, fieldSize, stripSize])
@@ -593,10 +675,10 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
               <div className={styles.soonLine} style={{ top: `${nearEdge}%` }} aria-hidden="true" data-testid="neglect-soon-line" />
             )}
             {staleLine && <div className={styles.untouchedLine} style={{ left: `${threshold}%` }} aria-hidden="true" />}
-            <ZoneWord zone="slipping" text={zoneText('slipping')} count={map.counts.slipping} className={`${styles.corner} ${styles.cornerSlipping}`} onOpen={openZone} />
+            <ZoneWithReview zone="slipping" text={zoneText('slipping')} count={map.counts.slipping} className={`${styles.corner} ${styles.cornerSlipping}`} onOpen={openZone} onReview={reviewZone} />
             <ZoneWord zone="inHand" text={zoneText('inHand')} count={map.counts.inHand} className={`${styles.corner} ${styles.cornerInHand}`} onOpen={openZone} />
             <ZoneWord zone="later" text={zoneText('later')} count={map.counts.later} className={`${styles.corner} ${styles.cornerLater}`} onOpen={openZone} />
-            <ZoneWord zone="drifting" text={zoneText('drifting')} count={map.counts.drifting} className={`${styles.corner} ${styles.cornerDrifting}`} onOpen={openZone} />
+            <ZoneWithReview zone="drifting" text={zoneText('drifting')} count={map.counts.drifting} className={`${styles.corner} ${styles.cornerDrifting}`} onOpen={openZone} onReview={reviewZone} />
             {plotted.map(dotFor)}
             {plotted.map((p) => {
               const label = plotLabels.get(p.todo.id)
@@ -613,7 +695,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
           <div ref={stripRef} className={styles.stripField}>
             {staleLine && <div className={styles.forgottenPart} style={{ left: `${forgottenStart}%` }} aria-hidden="true" />}
             <ZoneWord zone="noDates" text={`No dates · ${noDueCount}`} count={noDueCount} className={styles.stripLabel ?? ''} onOpen={openZone} />
-            <ZoneWord zone="forgotten" text={`Forgotten · ${map.counts.forgotten}`} count={map.counts.forgotten} className={styles.forgottenLabel ?? ''} onOpen={openZone} testId="neglect-forgotten" />
+            <ZoneWithReview zone="forgotten" text={`Forgotten · ${map.counts.forgotten}`} count={map.counts.forgotten} className={styles.forgottenLabel ?? ''} onOpen={openZone} onReview={reviewZone} testId="neglect-forgotten" />
             {strip.map(dotFor)}
             {strip.map((p) => {
               const label = stripLabels.get(p.todo.id)
@@ -638,6 +720,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
           map={map}
           zone={listZone}
           onZone={setListZone}
+          onReview={reviewZone}
           staleAfterDays={staleAfterDays}
           selectedIds={inScope ? selectedIds : undefined}
         />
@@ -664,16 +747,18 @@ function useListZone(map: NeglectMap<PersistedTodoItem>): [ListZone, (zone: List
 }
 
 /**
- * The map's list: a `Slipping N | Forgotten N` switch over it, then the
+ * The map's list: a `Slipping N | Forgotten N` switch over it with the
+ * shown zone's Review at its end (while it holds any task), then the
  * shown zone's first `SLIPPING_LISTED` tasks (each opens its task) — the
  * Slipping ones numbered as their dots are badged, the Forgotten ones with
  * a yellow dot —, the rest in the task dialog. The full map's own list, and
  * its medium face (D25 R) alone.
  */
-function ZoneList({ map, zone, onZone, staleAfterDays, selectedIds }: {
+function ZoneList({ map, zone, onZone, onReview, staleAfterDays, selectedIds }: {
   map: NeglectMap<PersistedTodoItem>
   zone: ListZone
   onZone: (zone: ListZone) => void
+  onReview: (zone: NeglectReviewZone) => void
   /** Settings' Stale after (the task dialog's description). */
   staleAfterDays: number
   /** The widget's selection, while it owns it (the full map's). */
@@ -702,6 +787,7 @@ function ZoneList({ map, zone, onZone, staleAfterDays, selectedIds }: {
           {segment('slipping')}
           {segment('forgotten')}
         </span>
+        {points.length > 0 && <ZoneReviewButton zone={zone} count={points.length} onReview={onReview} labeled />}
       </header>
       {points.length === 0 ? (
         <p className={styles.slipEmpty}>

@@ -4,7 +4,7 @@ A review steps through a queue of open tasks one card at a time. It always happe
 
 ## Jumping to a review
 
-Every Review button calls `services/review-jump.jumpToReview` with a filter.
+Every Review button calls `services/review-jump.jumpToReview` with a filter, but the Neglect map's, which always opens the popup review (`jumpToPopupReview`).
 
 **A Review widget on the open layout**, its first in reading order (`reviewWidgetTarget` in `services/review-widget`):
 
@@ -45,6 +45,7 @@ Either way:
   - the none row: Unassigned / No tags / No status / No priority / No due date.
 - **A Breakdown count column's count** sends the same, AND that column's filter.
 - **The filtered-tasks panel's Review these N tasks** sends the top bar's chips and its text search as one expression.
+- **A Neglect map zone's Review** sends the zone in the words that read Settings, and always opens the popup review, even beside a layout's Review widget ([Task maps](task-maps.md#review-these)).
 
 Two Breakdown cases open the task dialog instead of a review:
 

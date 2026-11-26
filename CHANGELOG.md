@@ -27,6 +27,9 @@ History before 2026-11-19 is in the git log.
   change them.
 - **The Neglect map lists Forgotten tasks too.** A `Slipping | Forgotten` switch over its list picks which; it shows
   Forgotten when nothing is slipping.
+- **Review a Neglect map zone.** Slipping, Drifting and Forgotten each have a Review button, beside the zone's word
+  and over the list. It opens the review in a popup, its filter the zone written out (`(due soon or followup soon)
+  and stale`), so it counts what the map counts.
 - **Hide statuses ›** in the Neglect map's menu: tasks with a ticked status leave the map, its counts and its
   Review.
 

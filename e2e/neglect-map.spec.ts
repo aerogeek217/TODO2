@@ -253,6 +253,19 @@ test('the axes’ `+3d` gives way in a short plot, so no two marks crowd each ot
   for (const gap of xGaps) expect(gap).toBeGreaterThanOrEqual(4)
 })
 
+test('the list’s switch shows Forgotten: the longest untouched first, a yellow dot, no numbers on the plot', async ({ page }) => {
+  const switcher = map(page).getByRole('group', { name: 'List' })
+  await expect(switcher.getByRole('button', { name: /^Slipping/ })).toHaveAttribute('aria-pressed', 'true')
+  await switcher.getByRole('button', { name: /^Forgotten/ }).click()
+  const forgotten = map(page).getByRole('region', { name: 'Forgotten' })
+  await expect(forgotten.getByRole('listitem')).toHaveText([/Archive old tickets/])
+  await expect(forgotten.getByRole('listitem').first()).toContainText('no dates · 50d untouched')
+  await expect(dot(page, 'Ship the quarterly report')).toHaveText('')
+  await switcher.getByRole('button', { name: /^Slipping/ }).click()
+  await expect(slippingList(page).getByRole('listitem')).toHaveCount(4)
+  await expect(dot(page, 'Ship the quarterly report')).toHaveText('2')
+})
+
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 

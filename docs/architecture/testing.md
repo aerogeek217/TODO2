@@ -88,7 +88,9 @@ Specs that rest on these seeds:
   - a lasso drag selecting the corner's dots into the bulk bar;
   - the screen filter narrowing the dots;
   - the cell menu's Color by, and no threshold of its own;
+  - the list's Slipping / Forgotten switch;
   - the phone's stacked layout.
+- `e2e/neglect-review.spec.ts`: a zone's Review (the plot's icon on hover, the list's header) opening the popup review on the zone's expression beside a layout's Review widget, its queue the zone's count; a hidden status adding `not !Status`.
 
 ### The table and the cell menu
 

@@ -6,6 +6,8 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
+import { REVIEW_POPUP_TAB_ID } from '../../../models/review'
 import type { NeglectTab } from '../../../models/workspace-layout'
 import type { PersistedTodoItem } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
@@ -143,6 +145,24 @@ describe('NeglectMapWidget', () => {
     fireEvent.click(segment(/^Slipping/))
     expect(screen.getByRole('region', { name: 'Slipping' })).toBeInTheDocument()
     expect(dotOf('Late and old')?.textContent).toBe('1')
+  })
+
+  it('Review beside Slipping, Drifting and Forgotten, and over the list: the popup review on the zone', async () => {
+    render(<NeglectMapWidget tab={neglectTab()} />)
+    const review = (zone: string) => [...document.querySelectorAll<HTMLElement>(`[data-neglect-review="${zone}"]`)]
+    // The plot's three words and the list's header (it shows Slipping).
+    expect(review('slipping')).toHaveLength(2)
+    expect(review('drifting')).toHaveLength(1)
+    expect(review('forgotten')).toHaveLength(1)
+    expect(review('slipping')[0]).toHaveAccessibleName('Review the 2 slipping tasks')
+    expect(review('forgotten')[0]).toHaveAccessibleName('Review the forgotten task')
+    // In hand and Later have none; a zone with no task has none.
+    expect(document.querySelectorAll('[data-neglect-review="inHand"], [data-neglect-review="later"]')).toHaveLength(0)
+    await act(async () => { fireEvent.click(review('drifting')[0]!) })
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' })
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]?.expression).toMatchObject({ kind: 'and' })
+    act(() => useTodoStore.setState({ todos: useTodoStore.getState().todos.filter((t) => t.id !== 5) }))
+    expect(review('drifting')).toHaveLength(0)
   })
 
   it('shows Forgotten when nothing is slipping', () => {
