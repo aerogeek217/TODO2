@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-25, second deployment
+
 ### Changed
 
 - **The Priority sort is a ladder:** Urgent first, then Important, then Focus, each one splitting the one before.
