@@ -11,17 +11,20 @@ type MarkFollowedUpButtonProps = Omit<ComponentPropsWithRef<'button'>, 'children
   fullWidth?: boolean
   /** Shown after the label, hidden from the accessible name (a key hint such as `› ⏎`). */
   adornment?: ReactNode
+  /** The label: `Mark followed up` unless the host says otherwise (a review card with no next follow-up: `Mark reviewed`). */
+  label?: string
 }
 
 /**
  * The one "Mark followed up" button — the task editor's Follow-up group, the
- * follow-up popover: the follow-up yellow, the flag-check icon and always the
- * same label. Followed up today, it steps down to a quiet button (pressing it
- * again only moves the next date). Everything else — ref, `disabled`, tooltip
+ * follow-up popover, the review footer: the follow-up yellow, the flag-check
+ * icon and the same label, but the review footer's `Mark reviewed` while it
+ * would leave no next follow-up. Followed up today, it steps down to a quiet
+ * button (pressing it again only moves the next date). Everything else — ref, `disabled`, tooltip
  * trigger props, `onClick` — passes through to the `<button>`.
  */
 export function MarkFollowedUpButton({
-  doneToday = false, dimmed = doneToday, fullWidth = false, adornment, className, ...props
+  doneToday = false, dimmed = doneToday, fullWidth = false, adornment, label = 'Mark followed up', className, ...props
 }: MarkFollowedUpButtonProps) {
   const classes = [
     styles.markFollowedUp,
@@ -37,7 +40,7 @@ export function MarkFollowedUpButton({
       data-done-today={doneToday ? 'true' : undefined}
     >
       <FollowedUpIcon />
-      Mark followed up
+      {label}
       {adornment != null && <span className={styles.markFollowedUpAdornment} aria-hidden="true">{adornment}</span>}
     </button>
   )

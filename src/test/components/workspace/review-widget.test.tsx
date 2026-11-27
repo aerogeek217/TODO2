@@ -837,6 +837,27 @@ describe('the Review widget: sweeps and the footer', () => {
     fireEvent.click(browse)
     expect(screen.queryByRole('listbox')).toBeNull()
   })
+
+  it('the main button reads Mark reviewed while Next is empty, else Mark followed up', () => {
+    act(() => useSettingsStore.setState({ autoFollowup: false }))
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(2))
+    // Task 3 first: no next follow-up, none proposed.
+    expect(screen.getByRole('button', { name: /^Mark reviewed/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Mark followed up/ })).toBeNull()
+    // A date typed in Next: it will set one.
+    fireEvent.change(screen.getByLabelText('Next follow-up'), { target: { value: '1w' } })
+    expect(screen.getByRole('button', { name: /^Mark followed up/ })).toBeInTheDocument()
+  })
+
+  it('with a next follow-up proposed (Settings’ automatic one) it reads Mark followed up; cleared, Mark reviewed', () => {
+    act(() => useSettingsStore.setState({ autoFollowup: true }))
+    renderAt('medium')
+    setFilter(person(2))
+    expect(screen.getByRole('button', { name: /^Mark followed up/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
+    expect(screen.getByRole('button', { name: /^Mark reviewed/ })).toBeInTheDocument()
+  })
 })
 
 describe('reviewFaceFor', () => {

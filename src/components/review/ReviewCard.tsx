@@ -481,6 +481,7 @@ function ReviewFooter({ followUp: f, compact = false, onOpenCard, followup }: {
       {!followup && steps}
       <MarkFollowedUpButton
         className={styles.markBtn}
+        label={f.markLabel}
         doneToday={f.doneToday}
         dimmed={f.doneToday && !f.hasUpdate}
         disabled={f.fieldDate === 'invalid'}
