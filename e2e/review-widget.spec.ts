@@ -100,11 +100,15 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await empty.getByRole('button', { name: 'Pick' }).click()
   await expect(field).toBeFocused()
   await expect(popup(page)).toBeVisible()
+  await expect(popup(page)).toContainText('Sweeps')
   await expect(popup(page)).toContainText('People')
   await expect(popup(page)).toContainText('Tags')
   await expect(popup(page)).toContainText('Status')
   const options = popup(page).getByRole('option')
-  await expect(options).toHaveText([/Aisha\s*4$/, /Ben\s*2$/, /Marcus Chen\s*0$/, /legal\s*2$/, /Waiting\s*1$/])
+  await expect(options).toHaveText([
+    /Forgotten\s*0$/, /Slipping\s*0$/, /Needs attention\s*2$/, /No person\s*0$/,
+    /Aisha\s*4$/, /Ben\s*2$/, /Marcus Chen\s*0$/, /legal\s*2$/, /Waiting\s*1$/,
+  ])
   // The list hangs under the field.
   const fieldBox = await w.locator('[data-prompt-row]').boundingBox()
   const popupBox = await popup(page).boundingBox()
@@ -280,6 +284,42 @@ test('large face: sorted by Priority unless a sort is stored; a double-click on 
   await page.reload()
   await pickInReview(page, 'rev1', 'Aisha')
   await expect(w.getByTestId('review-sort')).toContainText('Title')
+})
+
+test('the field’s ▾ opens the browse list with the sweeps on top; a sweep picked fills the field and reviews it', async ({ page }) => {
+  await seedWorkspace(page, largeSeed())
+  const w = widget(page, 'rev1')
+  const field = reviewField(page, 'rev1')
+  const browse = w.getByRole('button', { name: 'Browse' })
+  // 24 × 24 at the field's end, inside its border; its tooltip says what it lists.
+  const [browseBox, fieldBox] = [await browse.boundingBox(), await w.locator('[data-prompt-row] > div > div').first().boundingBox()]
+  if (!browseBox || !fieldBox) throw new Error('the ▾ and the field have boxes')
+  expect(Math.round(browseBox.width)).toBe(24)
+  expect(Math.round(browseBox.height)).toBe(24)
+  expect(browseBox.x + browseBox.width).toBeLessThanOrEqual(fieldBox.x + fieldBox.width)
+  expect(browseBox.x + browseBox.width).toBeGreaterThan(fieldBox.x + fieldBox.width - 6)
+  await browse.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Browse people, tags, statuses and sweeps')
+
+  await browse.click()
+  await expect(field).toBeFocused()
+  await expect(popup(page)).toBeVisible()
+  const options = popup(page).getByRole('option')
+  await expect(options.first()).toHaveText(/Forgotten\s*0$/)
+  await expect(popup(page)).toContainText(/^Sweeps.*People.*Tags.*Status/)
+  await shot(page, 'rf-sweeps')
+  // A second press closes it; the field keeps the focus.
+  await browse.click()
+  await expect(popup(page)).toHaveCount(0)
+  await expect(field).toBeFocused()
+
+  // Needs attention: its filter in the field's words, its tasks queued — the late due date and today's follow-up.
+  await browse.click()
+  await options.filter({ hasText: 'Needs attention' }).click()
+  await expect(field).toHaveValue('due soon or followup <= today ')
+  await expect(popup(page)).toHaveCount(0)
+  await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Onboarding checklist/])
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('0 followed up')
 })
 
 test('no place in the queue: the large face says how many are followed up; once every task has a mark, all reviewed', async ({ page }) => {

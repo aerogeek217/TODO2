@@ -103,6 +103,13 @@ export type AutocompleteRow =
     /** The group heading the row sits under (`People`): drawn before the first row of each (the Review widget's field). */
     section?: string
   }
+  /**
+   * A whole filter by name (the Review widget's sweeps): `id` is the host's
+   * (`services/review.REVIEW_SWEEPS`), which writes its filter on a pick.
+   * `tone`: its icon in the deadline or follow-up color (the Neglect map's
+   * Slipping and Forgotten); muted without.
+   */
+  | { kind: 'sweep'; id: string; label: string; count: number; section: string; tone?: 'deadline' | 'followup' }
   /** Create `@name` / `#tag`: offered below the matches unless one is exactly the name; picking it creates the entity at once. */
   | { kind: 'create'; trigger: '@' | '#'; name: string }
   | { kind: 'command'; command: SlashCommandSpec; matchLength: number }
@@ -177,6 +184,7 @@ export function statusItems(statuses: readonly Status[]): AutocompleteItem[] {
 function rowIdentity(row: AutocompleteRow): string {
   switch (row.kind) {
     case 'entity': return `${row.item.kind}:${row.item.id}`
+    case 'sweep': return `sweep:${row.id}`
     case 'create': return 'create'
     case 'command': return `command:${row.command.name}`
     case 'value': return `value:${row.insert}`
@@ -573,6 +581,8 @@ export function applyAutocompletePick(
     case 'parsed':
       insert = row.insert
       break
+    // A sweep replaces the whole filter: its host writes it.
+    case 'sweep':
     case 'error':
       return null
   }
@@ -598,7 +608,7 @@ export function bestMatchCompletion(value: string, view: AutocompleteView, index
   if (view.query.trim() === '') return value
   const row = view.rows[index]
   if (!row) return value
-  if (row.kind === 'create' || row.kind === 'parsed' || row.kind === 'error') return value
+  if (row.kind === 'create' || row.kind === 'parsed' || row.kind === 'error' || row.kind === 'sweep') return value
   if (row.kind === 'entity' && !row.resolves) return value
   if (row.kind === 'command' && takesArgument(row.command.name)) return value
   return applyAutocompletePick(value, view, row)?.value ?? value

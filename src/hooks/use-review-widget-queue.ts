@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { emptyPredicate, type TodoPredicate } from '../models'
+import { REVIEW_SWEEPS, type ReviewSweepId } from '../services/review'
 import type { ReviewFilter } from '../stores/list-widget-store'
 import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
@@ -31,13 +32,33 @@ const criteriaMemo = sharedMemoByKey(function criteria(predicate: TodoPredicate)
   return predicateToCriteria(predicate)
 })
 
+/** The open tasks of `shown` the predicate keeps (unordered). */
+function kept(base: StatsBase, predicate: TodoPredicate) {
+  const criteria = criteriaMemo(predicate)
+  return base.shown.filter((t) => !t.isCompleted && matchesFilterWithLookups(criteria, t, base.lookups, base.ctx.today, base.markerSettings))
+}
+
 /** The open tasks of `shown` the predicate keeps, in `sortOrder`. */
 function filteredIds(base: StatsBase, predicate: TodoPredicate): number[] {
-  const criteria = criteriaMemo(predicate)
-  return base.shown
-    .filter((t) => !t.isCompleted && matchesFilterWithLookups(criteria, t, base.lookups, base.ctx.today, base.markerSettings))
-    .sort(bySortOrder)
-    .map((t) => t.id)
+  return kept(base, predicate).sort(bySortOrder).map((t) => t.id)
+}
+
+/** Each sweep's filter as a predicate (the sweeps are constants). */
+const SWEEP_PREDICATES = REVIEW_SWEEPS.map((s) => ({ id: s.id, predicate: reviewFilterPredicate(s.filter) }))
+
+/**
+ * How many tasks each of the Review field's sweeps (`REVIEW_SWEEPS`) would
+ * queue: counted as the queue is, over the same base (the screen filter's
+ * open tasks, Settings' Stale after and due-soon range read live).
+ */
+export function reviewSweepCounts(base: StatsBase): Map<ReviewSweepId, number> {
+  return new Map(SWEEP_PREDICATES.map(({ id, predicate }) => [id, kept(base, predicate).length]))
+}
+
+/** {@link reviewSweepCounts}, kept current with the tasks, the screen filter and Settings. */
+export function useReviewSweepCounts(): ReadonlyMap<ReviewSweepId, number> {
+  const base = useStatsBase()
+  return useMemo(() => reviewSweepCounts(base), [base])
 }
 
 /** The queue of `filter` (none: an empty queue). Pass the same object while the filter is the same (the store's). */

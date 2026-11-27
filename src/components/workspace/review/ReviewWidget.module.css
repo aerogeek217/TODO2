@@ -62,7 +62,8 @@
   min-width: 0;
 }
 
-/* The field: the text over its tint mirror (the expression field's pattern), the clear funnel at its start. */
+/* The field: the text over its tint mirror (the expression field's pattern), the clear funnel at its
+ * start, the browse ▾ at its end. */
 .field {
   flex: 1;
   min-width: 0;
@@ -70,7 +71,7 @@
   align-items: center;
   gap: 4px;
   min-height: 28px;
-  padding: 3px 8px 3px 2px;
+  padding: 3px 1px 3px 2px;
   box-sizing: border-box;
   border: 1px solid var(--color-border);
   border-radius: 6px;
@@ -173,6 +174,35 @@
 .fieldErrorText {
   font-size: var(--font-size-row-meta);
   color: var(--color-danger-text);
+}
+
+/* The browse ▾ (board option B): 24px in the 28px field's 20px line, -2px each way as the funnel;
+ * on its first line when the field wraps. */
+.browseButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  width: 24px;
+  height: 24px;
+  margin: -2px 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.browseButton:hover,
+.browseButton[aria-expanded='true'] {
+  background: var(--color-tint-10);
+  color: var(--color-text-primary);
+}
+
+.browseButton:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 /* Check-in and Paste reply (people only, desktop): two quiet icon buttons. */

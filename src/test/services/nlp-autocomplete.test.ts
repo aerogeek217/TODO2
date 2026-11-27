@@ -53,6 +53,7 @@ function labels(view: AutocompleteView | null): string[] {
       case 'value': return r.label
       case 'parsed': return `= ${r.label}`
       case 'error': return `! ${r.text}`
+      case 'sweep': return `sweep ${r.label}`
     }
   })
 }

@@ -7,14 +7,17 @@ import { db } from '../../../data/database'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { FilterExpr, Person, Status, Tag } from '../../../models'
 import type { ReviewTab } from '../../../models/workspace-layout'
+import { REVIEW_SWEEPS } from '../../../services/review'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { clearReviewSessions, reviewWidgetSession } from '../../../stores/review-session'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { expressionsEqual, parseExpression, printExpression } from '../../../utils/filter-expression'
 import type { WidgetFace } from '../../../utils/widget-face'
 import {
   REVIEW_MEDIUM_MAX_HEIGHT_PX,
@@ -145,12 +148,15 @@ describe('the Review widget: nothing to review', () => {
 })
 
 describe('the Review widget: its field', () => {
-  it('a click lists people, tags and statuses under their headings, each with its open tasks, the most counted first', () => {
+  it('a click lists the sweeps, then people, tags and statuses under their headings, each with its open tasks, the most counted first', () => {
     renderAt('medium')
     fireEvent.click(field())
     const list = screen.getByRole('listbox')
-    expect(list).toHaveTextContent(/^People.*Tags.*Status/)
-    expect(options()).toEqual(['AAisha3', 'BBen2', 'legal2', 'q42', 'Waiting2', 'Blocked1'])
+    expect(list).toHaveTextContent(/^Sweeps.*People.*Tags.*Status/)
+    expect(options()).toEqual([
+      'Forgotten0', 'Slipping0', 'Needs attention0', 'No person1',
+      'AAisha3', 'BBen2', 'legal2', 'q42', 'Waiting2', 'Blocked1',
+    ])
   })
 
   it('a click on a row adds it; picks combine as chips do: a second person joins with or, a tag narrows both', () => {
@@ -740,6 +746,96 @@ describe('the Review widget: the queue and where it stands', () => {
     renderAt('medium')
     setFilter({ kind: 'or', items: [person(1), person(2)] })
     expect(screen.getByTestId('review-empty')).toHaveTextContent('Nothing to review: no open tasks match this filter here.')
+  })
+})
+
+describe('the Review widget: sweeps and the footer', () => {
+  const daysFromNow = (n: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + n)
+    return d
+  }
+  /** Tasks in each sweep: 1 Forgotten, 2 Slipping (and needing attention), 3 and 4 needing attention, 3 and 6 with no person. */
+  const seedSweeps = () => act(() => {
+    useSettingsStore.setState({ staleAfterDays: 30, urgentDueWithinDays: 3 })
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Untouched, undated', modifiedAt: daysFromNow(-60) }),
+        makeTodo({ id: 2, title: 'Due soon, untouched', dueDate: daysFromNow(1), modifiedAt: daysFromNow(-60) }),
+        makeTodo({ id: 3, title: 'Follow-up late, touched', nextFollowupAt: daysFromNow(-1) }),
+        makeTodo({ id: 4, title: 'Due soon, touched', dueDate: daysFromNow(2) }),
+        makeTodo({ id: 5, title: 'Done, untouched', modifiedAt: daysFromNow(-60), isCompleted: true }),
+        makeTodo({ id: 6, title: 'Due later', dueDate: daysFromNow(20) }),
+      ],
+    })
+    usePersonStore.setState({ assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha]], [4, [ben]], [5, [ben]]]) })
+  })
+  const sweepCounts = () => Object.fromEntries([...document.querySelectorAll('[data-sweep]')].map((o) => [o.getAttribute('data-sweep'), o.textContent]))
+
+  it('the sweeps lead the empty field’s list, each counted as its queue would be, Settings read live', () => {
+    seedSweeps()
+    renderAt('medium')
+    fireEvent.click(field())
+    expect(sweepCounts()).toEqual({ forgotten: 'Forgotten1', slipping: 'Slipping1', attention: 'Needs attention3', unassigned: 'No person2' })
+    // Stale after off: nothing is stale, so nothing is Forgotten or Slipping.
+    act(() => useSettingsStore.setState({ staleAfterDays: 0 }))
+    expect(sweepCounts()).toMatchObject({ forgotten: 'Forgotten0', slipping: 'Slipping0', attention: 'Needs attention3' })
+    // A narrower due-soon range: task 4 (due in 2 days) is no longer soon.
+    act(() => useSettingsStore.setState({ urgentDueWithinDays: 1 }))
+    expect(sweepCounts()).toMatchObject({ attention: 'Needs attention2' })
+  })
+
+  it('a sweep picked puts its whole filter in the field, and the queue is what it counted', () => {
+    seedSweeps()
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Slipping/ }))
+    expect(field()).toHaveValue('(due soon or followup soon) and stale ')
+    expect(stored()).toEqual(REVIEW_SWEEPS.find((s) => s.id === 'slipping')?.filter)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(rowIds()).toEqual(['2'])
+    // The Neglect map's Forgotten, as its Review sends it; Needs attention and No person in the field's words.
+    for (const [name, text] of [
+      [/Forgotten/, 'no due and no followup and planned none and stale '],
+      [/Needs attention/, 'due soon or followup <= today '],
+      [/No person/, 'no person '],
+    ] as const) {
+      act(() => useListWidgetStore.getState().setReviewFilter('rv', null))
+      type('')
+      fireEvent.click(field())
+      fireEvent.mouseDown(screen.getByRole('option', { name }))
+      expect(field()).toHaveValue(text)
+    }
+    expect(rowIds()).toEqual(['3', '6'])
+  })
+
+  it('each sweep reads back as its own filter (the field shows what it means)', () => {
+    for (const sweep of REVIEW_SWEEPS) {
+      const text = printExpression(sweep.filter.expression, false, { person: () => undefined, tag: () => undefined, status: () => undefined })
+      const read = parseExpression(text, { today: new Date(), names: { person: () => undefined, tag: () => undefined, status: () => undefined } })
+      expect(read.ok && read.expression != null && expressionsEqual(read.expression, sweep.filter.expression)).toBe(true)
+    }
+  })
+
+  it('no sweeps once the field holds a filter: they replace it whole', () => {
+    renderAt('medium')
+    setFilter(person(1))
+    fireEvent.focus(field())
+    fireEvent.click(field())
+    expect(document.querySelector('[data-sweep]')).toBeNull()
+    expect(screen.getAllByRole('option').length).toBeGreaterThan(0)
+  })
+
+  it('the field’s ▾ opens the same list, the field focused; a second press closes it', () => {
+    renderAt('medium')
+    const browse = screen.getByRole('button', { name: 'Browse' })
+    expect(browse).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(browse)
+    expect(field()).toHaveFocus()
+    expect(screen.getByRole('listbox')).toHaveTextContent(/^Sweeps.*People.*Tags.*Status/)
+    expect(browse).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(browse)
+    expect(screen.queryByRole('listbox')).toBeNull()
   })
 })
 

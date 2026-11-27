@@ -158,6 +158,41 @@ export function neglectZoneReviewFilter(zone: NeglectReviewZone, hiddenStatusIds
   return reviewFilterOf(allOf([...NEGLECT_ZONE_TERMS[zone], ...hidden]))
 }
 
+// ── Sweeps ──────────────────────────────────────────────────────────────────
+
+/** The Review field's sweeps (its browse list's first section). */
+export type ReviewSweepId = 'forgotten' | 'slipping' | 'attention' | 'unassigned'
+
+export interface ReviewSweep {
+  id: ReviewSweepId
+  label: string
+  filter: ReviewFilter
+}
+
+/** `followup <= today`: a next follow-up due today or late. */
+const FOLLOWUP_BY_TODAY: FilterExpr = {
+  kind: 'date',
+  field: 'followup',
+  match: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
+}
+
+/**
+ * The sweeps the Review field's browse list starts with, in order, each a
+ * whole filter the field shows as its expression. Forgotten and Slipping are
+ * the Neglect map's zones as its Review buttons send them, so both follow
+ * Settings (Stale after, the due-soon range) as they change:
+ * - Forgotten: `no due and no followup and planned none and stale`;
+ * - Slipping: `(due soon or followup soon) and stale`;
+ * - Needs attention: `due soon or followup <= today`;
+ * - No person: `no person`.
+ */
+export const REVIEW_SWEEPS: readonly ReviewSweep[] = [
+  { id: 'forgotten', label: 'Forgotten', filter: reviewFilterOf(allOf(NEGLECT_ZONE_TERMS.forgotten)) },
+  { id: 'slipping', label: 'Slipping', filter: reviewFilterOf(allOf(NEGLECT_ZONE_TERMS.slipping)) },
+  { id: 'attention', label: 'Needs attention', filter: reviewFilterOf({ kind: 'or', items: [DUE_SOON, FOLLOWUP_BY_TODAY] }) },
+  { id: 'unassigned', label: 'No person', filter: reviewFilterOf({ kind: 'person', id: 0 }) },
+]
+
 // ── A Breakdown row ─────────────────────────────────────────────────────────
 
 /** A date range of `field`, each end a day offset from today (null: open). */

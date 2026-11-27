@@ -36,6 +36,7 @@ const COUNTS: ReviewFieldCounts = {
   person: new Map([[1, 12], [2, 5], [3, 6], [4, 2]]),
   tag: new Map([[1, 9], [2, 4]]),
   status: new Map([[1, 4]]),
+  sweep: new Map([['forgotten', 14], ['slipping', 3], ['attention', 5]]),
 }
 
 /** Whether a text reads: the words this test uses as whole terms. */
@@ -45,15 +46,19 @@ function view(value: string, cursor = value.length, browse = false): Autocomplet
   return reviewFieldAutocomplete(value, cursor, SOURCES, { counts: COUNTS, browse, reads })
 }
 
-const names = (v: AutocompleteView | null) => v?.rows.map((r) => (r.kind === 'entity' ? `${r.section ? `${r.section}:` : ''}${r.item.name}${r.count != null ? ` ${r.count}` : ''}` : r.kind))
+const names = (v: AutocompleteView | null) => v?.rows.map((r) => {
+  if (r.kind === 'sweep') return `${r.section}:${r.label} ${r.count}${r.tone ? ` (${r.tone})` : ''}`
+  return r.kind === 'entity' ? `${r.section ? `${r.section}:` : ''}${r.item.name}${r.count != null ? ` ${r.count}` : ''}` : r.kind
+})
 
 describe('reviewFieldAutocomplete', () => {
-  it('a click on the empty field: people, tags and statuses under their headings, the most counted first', () => {
+  it('a click on the empty field: the sweeps in their order with their counts, then people, tags and statuses under their headings, the most counted first', () => {
     const v = view('', 0, true)
     expect(v?.trigger).toBeNull()
     expect(v?.mixed).toBe(true)
     expect(v?.header).toBe('')
     expect(names(v)).toEqual([
+      'Sweeps:Forgotten 14 (followup)', 'Sweeps:Slipping 3 (deadline)', 'Sweeps:Needs attention 5', 'Sweeps:No person 0',
       'People:Aisha 12', 'People:Marcus Chen 6', 'People:Ben 5', 'People:Marco Ruiz 2',
       'Tags:Project: Atlas 9', 'Tags:marketing 4',
       'Status:Waiting 4', 'Status:On Hold 0',
@@ -66,9 +71,11 @@ describe('reviewFieldAutocomplete', () => {
   })
 
   it('the whole list where a term may go: after an operator, after a whole term, inside parentheses — not inside a word or after an unfinished one', () => {
+    // The sweeps only in an empty field: each is a whole filter.
     expect(view('@Aisha and ', 11, true)?.rows).toHaveLength(8)
     expect(view('@Aisha ', 7, true)?.rows).toHaveLength(8)
     expect(view('(', 1, true)?.rows).toHaveLength(8)
+    expect(view('  ', 2, true)?.rows).toHaveLength(12)
     expect(view('marketing', 3, true)).toBeNull()
     expect(view('due ', 4, true)).toBeNull()
   })
