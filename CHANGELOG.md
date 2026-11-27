@@ -32,6 +32,13 @@ History before 2026-11-19 is in the git log.
   and stale`), so it counts what the map counts.
 - **Hide statuses ›** in the Neglect map's menu: tasks with a ticked status leave the map, its counts and its
   Review.
+- **Sweeps in the Review widget.** Clicking its empty filter field now lists four ready-made reviews first, each
+  with how many tasks it holds: **Forgotten** and **Slipping** (as the Neglect map counts them), **Needs attention**
+  (due soon or a follow-up due) and **No person**. Picking one puts its filter in the field, where you can read
+  and change it.
+- A **▾** at the end of the Review widget's filter field opens the same list of sweeps, people, tags and statuses.
+- **Plan ▾** in the Review widget's footer plans the task for a day of this week, or a date you pick, without
+  opening the card's ⋯ menu.
 
 ### Changed
 
@@ -44,6 +51,9 @@ History before 2026-11-19 is in the git log.
 - The light theme's teal is a little deeper, so white text on its buttons and chips is easier to read.
 - The tally in the top bar, the Planner's fold chevron and the Neglect map's dots are easier to click: each
   takes a press at least 24px across, drawn as before.
+- The Review widget's main button reads **Mark reviewed** when the task will have no next follow-up. It does
+  the same as Mark followed up: it records today's review.
+- The Review widget's progress says how many tasks are left too: `12 left · 2 followed up`.
 
 ### Fixed
 

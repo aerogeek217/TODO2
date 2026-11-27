@@ -1,6 +1,6 @@
 # Review
 
-A review steps through a queue of open tasks one card at a time. It always happens in a **Review widget** (kind `review`, `components/workspace/review/ReviewWidget`): one on the open layout, or the popup review. Every Review button jumps there with a filter (`services/review-jump`, `services/review`). The rail, card and footer live in `components/review`; the card's body is the task layout the task editor shares (`task/TaskDetailsBody`).
+A review steps through a queue of open tasks one card at a time, always in a **Review widget** (kind `review`, `components/workspace/review/ReviewWidget`): one on the open layout, or the popup review. Every Review button jumps there with a filter (`services/review-jump`, `services/review`). The rail, card and footer live in `components/review`; the card's body is the task layout the task editor shares (`task/TaskDetailsBody`).
 
 ## Jumping to a review
 
@@ -55,8 +55,6 @@ Two Breakdown cases open the task dialog instead of a review:
 See [Glance widgets](glance-widgets.md), [Lists](lists.md) and [Screen filter](screen-filter.md).
 
 ## The review's parts
-
-The parts (`components/review`) are shared by the widget's faces.
 
 ### The rail
 
@@ -156,12 +154,12 @@ Its title row:
 Its **footer**:
 
 - ‹ **Back** and **Skip** › are at its left end. They write nothing.
-- At its right are the follow-up fields, then **Mark followed up ›**.
+- At its right are the follow-up fields, then **Plan ▾** (the ⋯'s Plan for day ›; none for a completed task) and **Mark followed up ›**.
 - **Last** is a field: a date, never in the future. ⏎ / Tab / blur write it after the notes, as its own undo step. ⏎ hands the focus back to the update line. Esc reverts.
 - **Next** comes with the quick intervals. Its × clears it; there is no None.
-- **Mark followed up ›** is also ⏎ in the update line. Its tooltip says what it will do, and the field it reads is right beside it. It follows the follow-up popover's rules (the typed update and the follow-up as one undo step), then the next card opens.
-- In the DOM the fields and Mark followed up come before Back and Skip. So from the update line, Tab reaches Last, then (after Last's calendar) Next.
-- As the footer narrows, the quick intervals go first, then the fields' relative words, then the labels.
+- **Mark followed up ›** is also ⏎ in the update line. Its tooltip says what it will do, and the field it reads is right beside it. It follows the follow-up popover's rules (the typed update and the follow-up as one undo step), then the next card opens. It reads **Mark reviewed** while Next is empty (nothing proposed, or cleared), and does the same.
+- In the DOM the fields, Plan ▾ and Mark followed up come before Back and Skip. So from the update line, Tab reaches Last, then (after Last's calendar) Next.
+- As the footer narrows, the quick intervals go first, then the fields' relative words, then the labels, then Plan ▾ (the ⋯ keeps Plan for day ›).
 
 Typed update and Next-date drafts are kept per task in the widget's session. A new filter keeps them; a data replace clears them.
 
@@ -178,7 +176,7 @@ Typed update and Next-date drafts are kept per task in the widget's session. A n
 
 ### The Mark followed up button
 
-There is one **Mark followed up** button (`shared/followup/MarkFollowedUpButton`): follow-up yellow, the flag-check icon, never a changed label. It is the editor footer's (after the follow-up fields, before Done; edit mode only), the follow-up popover's and the review footer's.
+There is one **Mark followed up** button (`shared/followup/MarkFollowedUpButton`): follow-up yellow, the flag-check icon, its label changed only by the review footer's `Mark reviewed`. It is the editor footer's (after the follow-up fields, before Done; edit mode only), the follow-up popover's and the review footer's.
 
 ## The Review widget
 
@@ -200,7 +198,8 @@ What it reviews is **a filter typed into its field** (`ReviewFilterField`).
 
 ### The list and picks
 
-- A click on the field lists people, tags and statuses under their headings, each with its open tasks under the widget's screen filter, the most counted first. So do a focus while it is empty and the empty state's **Pick**.
+- A click on the field lists people, tags and statuses under their headings, each with its open tasks under the widget's screen filter, the most counted first. So do a focus while it is empty, the empty state's **Pick** and the **▾** at the field's end (`Browse people, tags, statuses and sweeps`; a second press closes it).
+- In an empty field **Sweeps** come first, each with the open tasks it would queue (`REVIEW_SWEEPS`): **Forgotten** and **Slipping** as the Neglect map's Review sends them, **Needs attention** (`due soon or followup <= today`) and **No person**. A pick replaces the field with its filter, which reads Settings live ([Filters](filters.md#the-words-that-read-settings)).
 - Bare letters where a term may go match all three at once (no `@` first). ⏎ takes the first.
 - `@ # ! /` still open the expression popup.
 - The list comes from `services/review-field.reviewFieldAutocomplete` and is drawn by the shared `NlpPopup` with its `mixed` marks, counts and section headings.
@@ -227,7 +226,7 @@ Two buttons sit at the field's end while the filter names only people (`@A`, `@A
 
 ### Top line and progress
 
-- Alone in its cell, its top line reads `Review`, then `2 followed up` (with a filter) and the cell's ⋯. The field's row is under it.
+- Alone in its cell, its top line reads `Review`, then `12 left · 2 followed up` (with a filter) and the cell's ⋯. The field's row is under it.
 - At the large face the progress reads `All 12 reviewed · 2 followed up` once every task has a mark.
 - In a cell of several widgets, and in the widget popup, there is no top line. The field's row is its first row and ends with the progress.
 - `N followed up` also counts the tasks followed up in this review that left the queue since.
@@ -271,7 +270,7 @@ Only the rail's sort is view state, saved at once: **Priority** where the tab st
 - The title. A right-click on its row opens the task menu.
 - A one-line facts summary. Last is there; it is edited through Open card ↗. After the priority, `Planned 11/28` with the hollow bar, in the deadline color while the plan falls after a real date.
 - The updates dock: the Status updates heading, the latest two entries, the update line (⏎ follows up) and the Next row (the field and the quick intervals, which give way in a narrow card).
-- The footer with **Open card ↗** (the editor).
+- The footer: **Open card ↗** (the editor), **Plan ▾**, Back, Skip and the main button.
 
 **Small**: `Review · <filter>` (`Review · Pick who or what` with none) and `N left · M followed up`. A click opens the whole widget in the widget popup, where its field is usable.
 
