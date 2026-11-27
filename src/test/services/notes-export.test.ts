@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref } from '../../services/notes-export'
+import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref, trimTrailingNewlines } from '../../services/notes-export'
 import { expectWithin } from '../timing'
 
 describe('normalizeToMarkdown', () => {
@@ -64,6 +64,24 @@ describe('mdToHtml', () => {
     const html = mdToHtml('<script>alert(1)</script>')
     expect(html).toContain('&lt;script&gt;')
   })
+
+  it('reads links before emphasis: a * or ` in a URL stays in the URL', () => {
+    expect(mdToHtml('[docs](https://x.com/a*b*c) and *em*'))
+      .toBe('<p><a href="https://x.com/a*b*c">docs</a> and <em>em</em></p>')
+    expect(mdToHtml('[a](https://x.com/*) or [b](https://y.com/*)'))
+      .toBe('<p><a href="https://x.com/*">a</a> or <a href="https://y.com/*">b</a></p>')
+    expect(mdToHtml('[c](https://x.com/`q`)')).toBe('<p><a href="https://x.com/`q`">c</a></p>')
+  })
+
+  it('emphasis still wraps a link, and a link’s text', () => {
+    expect(mdToHtml('**see [docs](https://x.com)**')).toBe('<p><strong>see <a href="https://x.com">docs</a></strong></p>')
+    expect(mdToHtml('[**docs**](https://x.com) `code`')).toBe('<p><a href="https://x.com"><strong>docs</strong></a> <code>code</code></p>')
+    expect(mdToHtml('`[a](u)`')).toBe('<p><code><a href="u">a</a></code></p>')
+  })
+
+  it('a NUL in the text is dropped, never read as a link', () => {
+    expect(mdToHtml('a\u00000\u0000b [x](u)')).toBe('<p>a0b <a href="u">x</a></p>')
+  })
 })
 
 describe('htmlToMarkdown', () => {
@@ -100,6 +118,13 @@ describe('htmlToMarkdown', () => {
 
   it('converts <a href> to Markdown link', () => {
     expect(htmlToMarkdown('<p><a href="https://x.com">X</a></p>')).toBe('[X](https://x.com)')
+  })
+
+  it('escapes brackets in a link’s text, so they can’t end it or start another link', () => {
+    expect(htmlToMarkdown('<p><a href="https://x.com">see [1]</a></p>')).toBe('[see \\[1\\]](https://x.com)')
+    expect(htmlToMarkdown('<p><a href="https://x.com">a](https://evil.example)[b</a></p>'))
+      .toBe('[a\\](https://evil.example)\\[b](https://x.com)')
+    expect(htmlToMarkdown('<p><a href="//evil.example/a">X</a></p>')).toBe('[X](#)')
   })
 
   it('strips <script> tags', () => {
@@ -161,11 +186,20 @@ describe('sanitizeHref', () => {
     expect(sanitizeHref('tel:+15551234')).toBe('tel:+15551234')
   })
 
-  it('allows schemeless values (relative, anchor, protocol-relative)', () => {
+  it('allows schemeless values (relative, anchor)', () => {
     expect(sanitizeHref('/path/to/x')).toBe('/path/to/x')
     expect(sanitizeHref('#anchor')).toBe('#anchor')
-    expect(sanitizeHref('//cdn.example.com/a')).toBe('//cdn.example.com/a')
     expect(sanitizeHref('relative.html')).toBe('relative.html')
+  })
+
+  it('returns # for a protocol-relative, UNC or backslashed value (another host without a scheme)', () => {
+    expect(sanitizeHref('//cdn.example.com/a')).toBe('#')
+    expect(sanitizeHref(' //host/share')).toBe('#')
+    expect(sanitizeHref('\\\\host\\share')).toBe('#')
+    expect(sanitizeHref('/\\host')).toBe('#')
+    expect(sanitizeHref('https:\\\\example.com')).toBe('#')
+    expect(sanitizeHref('path\\file.html')).toBe('#')
+    expect(sanitizeHref('&#47;&#47;host')).toBe('#')
   })
 
   it('returns # for empty input', () => {
@@ -340,6 +374,15 @@ describe('notes-export on long pathological lines', () => {
         expect(mdToHtml(`- ${pad}a${sep}b`)).toBe(`<ul>\n<li>a${sep}b</li>\n</ul>`)
       })
     }
+  })
+
+  it('trimTrailingNewlines: a long run of newlines inside or at the end', () => {
+    within(1000, () => {
+      expect(trimTrailingNewlines(`${'\n'.repeat(N)}x`)).toBe(`${'\n'.repeat(N)}x`)
+      expect(trimTrailingNewlines(`x${'\n'.repeat(N)}`)).toBe('x')
+    })
+    expect(trimTrailingNewlines('a\n\nb\n\n')).toBe('a\n\nb')
+    expect(trimTrailingNewlines('\n\n')).toBe('')
   })
 
   it('mdToHtml still links and trims as before', () => {

@@ -14,7 +14,7 @@ import type { FilterSettings } from '../../../utils/filter-match'
 import { makePerson, makeTodo } from '../../helpers'
 
 const TODAY = new Date(2026, 9, 12)
-const SETTINGS: FilterSettings = { urgentRange: 0, weekStartsOn: 1 }
+const SETTINGS: FilterSettings = { urgentRange: 0, weekStartsOn: 1, staleAfterDays: 30 }
 const ada = makePerson({ id: 1, name: 'Ada Lovelace', initials: 'AL' })
 const TODOS = [
   makeTodo({ id: 1, uid: '11111111-0000-4000-8000-000000000001', title: 'Overdue report', dueDate: new Date(2026, 9, 10) }),

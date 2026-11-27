@@ -47,6 +47,8 @@ The **slipped share** (`slipPct`) is `slipped / (done + slipped)` over the week 
 
 `planner/WeekLoadMeter` sits in the Planner's top line, before Reset plan. It is drawn only while the Planner is alone in its cell.
 
+- **One reading per Planner.** `PlannerWidget` calls `useWeekLoad` once and hands the result to both its meters, the line's and the bar; the popover a meter opens draws that same result. The ⋯ menu's popover (`WeekLoadHost`) sits outside the widget and reads the hook itself.
+
 - A 56 × 6px bar of this week's dates in the kinds' solid colors: due, then follow-up, then planned, each as long as its count. A dashed mark sits at the usual week. The scale is the larger of the load and 1.5 × the usual week.
 - Then `19 / 13`: the load, then the usual week.
 - Its accessible name and tooltip: `This week: 19 dates, usual 13`.

@@ -43,14 +43,19 @@ describe('text contrast (WCAG AA)', () => {
     }
   })
 
-  it('the light accent as text follows an accent colour override', () => {
-    // Mixed from the accent, so `color.light.accent` (an inline --color-accent) carries over.
-    expect(themeTokens('light').get('--color-accent-text')).toMatch(/var\(--color-accent\)/)
+  it('the accent as text: the light theme’s own teal, the dark theme’s the accent itself', () => {
+    // An accent override sets it inline (`settings-store.applyColorOverrides`).
+    expect(themeTokens('light').get('--color-accent-text')).toBe('#24756d')
     expect(themeTokens('dark').get('--color-accent-text')).toBe('var(--color-accent)')
   })
 
   it.each(THEMES)('%s: a checkmark on the accent fill stands out', (theme) => {
     expect(ratio(theme, '--color-text-on-accent', '--color-accent')).toBeGreaterThanOrEqual(AA_GRAPHIC)
+  })
+
+  it('light: white text on the accent fill reads (a primary button)', () => {
+    expect(ratio('light', '--color-text-on-accent', '--color-accent')).toBeGreaterThanOrEqual(AA_TEXT)
+    expect(ratio('light', '--color-text-on-accent', '--color-accent-dim')).toBeGreaterThanOrEqual(AA_TEXT)
   })
 
   it('dark: a danger button’s label reads on its fill', () => {

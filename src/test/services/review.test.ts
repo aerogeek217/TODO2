@@ -194,7 +194,7 @@ describe('a Breakdown row as a filter keeps exactly the row’s tasks', () => {
 
   const kept = (f: ReviewFilter): number[] => {
     const criteria = predicateToCriteria(withExpression(emptyPredicate(), f.expression, f.showCompleted))
-    return tasks.filter((t) => matchesFilterWithLookups(criteria, t, lookups, today, { urgentRange: 3, weekStartsOn: 1 })).map((t) => t.id).sort((a, b) => a - b)
+    return tasks.filter((t) => matchesFilterWithLookups(criteria, t, lookups, today, { urgentRange: 3, weekStartsOn: 1, staleAfterDays: 30 })).map((t) => t.id).sort((a, b) => a - b)
   }
   const ids = (row: BreakdownRow) => [...row.ids].sort((a, b) => a - b)
   const rowsOf = (splitBy: BreakdownSplit, over: readonly PersistedTodoItem[] = tasks) =>
@@ -245,7 +245,7 @@ describe('a Breakdown row as a filter keeps exactly the row’s tasks', () => {
         : { assignedPeopleMap: new Map<number, Person[]>(), assignedTagsMap: tagsMap }
       const stats: StatsContext = { today, weekStartsOn: 1, urgentRange: 3, statuses: [], ...maps }
       const names = todoNameLookups({ ...maps, statuses: [], statusUpdatesByTodo: new Map(), subtasksByTodo: new Map() })
-      const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const }
+      const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const, staleAfterDays: 30 }
       const chartFilter: TodoPredicate = { ...emptyPredicate(), [field]: chartPicks }
       const chart = predicateToCriteria(chartFilter)
       const bar = predicateToCriteria({ ...emptyPredicate(), [field]: barPicks })

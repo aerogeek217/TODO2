@@ -114,6 +114,7 @@ describe('useSettingsStore', () => {
       expect(await db.settings.get('color.dark.accent')).toBeUndefined()
       expect(inline('--color-accent')).toBe('')
       expect(inline('--color-accent-dim')).toBe('')
+      expect(inline('--color-accent-text')).toBe('')
       // The same theme's other override and the other theme's same colour stay.
       expect(s().colors.dark.danger).toBe('#00ff00')
       expect((await db.settings.get('color.dark.danger'))!.value).toBe('#00ff00')
@@ -192,6 +193,18 @@ describe('useSettingsStore', () => {
     expect(inline('--color-marker-focus-bg')).toBe('color-mix(in srgb, #3b82f6 12%, transparent)')
     await useSettingsStore.getState().setThemeMode('dark')
     expect(inline('--color-marker-focus-text')).toBe('#8ab4f8')
+  })
+
+  it('the accent as text follows an accent override: darkened in light, as it is in dark', async () => {
+    const inline = (name: string) => document.documentElement.style.getPropertyValue(name)
+    await useSettingsStore.getState().setColor('light', 'accent', '#3b82f6')
+    await useSettingsStore.getState().setColor('dark', 'accent', '#8ab4f8')
+    expect(inline('--color-accent-text')).toBe('#8ab4f8')
+    await useSettingsStore.getState().setThemeMode('light')
+    expect(inline('--color-accent-text')).toBe('color-mix(in srgb, #3b82f6 76%, black)')
+    await useSettingsStore.getState().resetColor('light', 'accent')
+    // Back to the stylesheet's own light teal.
+    expect(inline('--color-accent-text')).toBe('')
   })
 
   it('a failed theme or colour save puts the page back too', async () => {

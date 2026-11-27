@@ -162,7 +162,7 @@ describe('subtasks in the text search (cr28)', () => {
     const groups = groupTodosByTextMatch(todos, 'travel', (t) => textMatchContextFor(t, lookupsFor({ subtasksByTodo })))
     expect(groups.subtask.map((t) => t.id)).toEqual([1])
     expect(groups.title.map((t) => t.id)).toEqual([2])
-    const settings = { urgentRange: null, weekStartsOn: 0 as const }
+    const settings = { urgentRange: null, weekStartsOn: 0 as const, staleAfterDays: 30 }
     const filters = { ...emptyFilterCriteria, searchText: 'marco' }
     const today = new Date(2026, 9, 6)
     expect(matchesFilterWithLookups(filters, makeTodo({ id: 1, title: 'Q4 budget' }), lookupsFor({ subtasksByTodo }), today, settings)).toBe(true)
@@ -188,7 +188,7 @@ describe('status updates in the text search', () => {
   })
 
   it('a search clause (a list’s, the screen filter’s) keeps a task whose entry matches', () => {
-    const settings = { urgentRange: null, weekStartsOn: 0 as const }
+    const settings = { urgentRange: null, weekStartsOn: 0 as const, staleAfterDays: 30 }
     const filters = { ...emptyFilterCriteria, searchText: 'ben' }
     const today = new Date(2026, 9, 6)
     expect(matchesFilterWithLookups(filters, makeTodo({ id: 1, title: 'Q4 budget' }), lookupsFor({ statusUpdatesByTodo }), today, settings)).toBe(true)

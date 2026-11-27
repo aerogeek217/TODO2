@@ -316,4 +316,16 @@ describe('buildMarkdownExport', () => {
     // No locale-dependent date call (the browser's locale doesn't change the file).
     expect(toLocale.mock.calls.every((c) => c[0] === 'en-US')).toBe(true)
   })
+
+  it('notes with a long run of blank lines export fast, trailing ones dropped', async () => {
+    // A `/\n+$/` trim retried from every newline of the run: quadratic.
+    const run = '\n'.repeat(50_000)
+    await db.todos.add(makeTodo({ id: 1, title: 'Inside', sortOrder: 1, notes: `a${run}b` }))
+    await db.todos.add(makeTodo({ id: 2, title: 'Trailing', sortOrder: 2, notes: `c${run}` }))
+    const start = performance.now()
+    const md = await buildMarkdownExport()
+    expect(performance.now() - start).toBeLessThan(2000)
+    expect(md).toContain('### Trailing\n- **Notes:** c\n')
+    expect(md).toContain('  a\n')
+  })
 })

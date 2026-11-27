@@ -51,6 +51,15 @@ export function urgentRangeLabel(range: UrgentDueWithinDays): string {
   return `${range} ${range === 1 ? 'day' : 'days'}`
 }
 
+/**
+ * Whether a date `dueIn` days from today (negative: late) is near: late, or
+ * within the due-soon range (`null`: only a late one). The filter words
+ * `due soon` / `followup soon` and the Neglect map's zones read it.
+ */
+export function isDueNear(dueIn: number, range: UrgentDueWithinDays): boolean {
+  return dueIn < 0 || (range != null && dueIn <= range)
+}
+
 type UrgencyFields = Pick<TodoItem, 'urgent' | 'dueDate' | 'isCompleted'>
 
 /** Whether the due date alone makes the task urgent (open tasks only). */

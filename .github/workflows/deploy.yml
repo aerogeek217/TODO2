@@ -5,10 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Read-only by default; only the deploy job can publish to Pages.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -29,6 +28,9 @@ jobs:
       # Again in a random order (the seed is printed): catches a test that
       # passes only after, or before, another one.
       - run: npm run test:shuffle
+      # The Playwright specs don't run here, and `tsc -b` doesn't cover them:
+      # type-check them, so a spec that no longer compiles is caught.
+      - run: npx tsc --noEmit -p tsconfig.e2e.json
       - run: npm run build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -37,6 +39,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

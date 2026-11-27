@@ -9,7 +9,7 @@ import { openSettings, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtur
  * - U5 · the task editor's pressed priority toggle is the priority's color on
  *   the priority's own tint — with no color of its own, the tint it always had;
  * - U6 · a typed `/focus` token's text is Focus's color as the theme draws a
- *   color as text: darkened in the light theme, as the accent it follows is;
+ *   color as text: darkened in the light theme, as an accent override is;
  * - answer 18 · a row's Reset removes that one override: the priority follows
  *   Danger / Follow up / the accent again, the other overrides stay.
  */
@@ -110,8 +110,9 @@ for (const theme of THEMES) {
       const token = quickAdd.locator('span[data-tint="focus"]').filter({ hasText: '/focus' }).first()
       await expect(token).toBeVisible()
       expect(await css(token, 'color')).toBe(await computedOf(page, 'color', 'var(--color-accent-text)'))
-      const mix = theme === 'light' ? 'color-mix(in srgb, var(--color-accent) 76%, black)' : 'var(--color-accent)'
-      expect(await css(token, 'color')).toBe(await computedOf(page, 'color', mix))
+      // Light: the theme's own accent text teal; dark: the accent itself.
+      const shown = theme === 'light' ? '#24756d' : 'var(--color-accent)'
+      expect(await css(token, 'color')).toBe(await computedOf(page, 'color', shown))
     })
 
     test('answer 18 · a row’s Reset removes that one override; the priority follows its color again', async ({ page }) => {

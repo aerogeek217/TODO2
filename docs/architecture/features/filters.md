@@ -169,6 +169,7 @@ The grammar is in `utils/filter-expression` (parse, print, convert, tree). Terms
 | Text contains | a quoted phrase (bare words are quoted when the field settles) |
 | Date | a date word (`due`, `planned`, `followup`, `followed`, `created`, `modified`, `completed`) with what follows it, below |
 | Shortcuts | `overdue`, `followup late`, `never followed` |
+| Words that read Settings | `stale`, `due soon`, `followup soon` (see [below](#the-words-that-read-settings)) |
 
 `planned` is the Planner's planned day, and takes every form the other date words take (`planned fri`, `planned <= today`, `planned -3d..+7d`, `planned any`). Its none prints `planned none` (`no planned` reads too): the tasks with no planned day. `planned any` reads back as `planned`, `planned none` as `not planned`, and a planned range as its chip words (`planned this week`).
 
@@ -183,6 +184,15 @@ After a date word comes one of:
   - The older `before` / `by` / `after` / `from` still read, and settle as comparisons.
 - **A range** `a..b` (`due -3d..+7d`). Two dates, or two days from today, that end before they start are an error.
 - `any` / `none`.
+
+### The words that read Settings
+
+Three words take their duration from Settings as it is when the filter runs. A filter using them follows a settings change at once; no duration is written into it.
+
+- `stale`: an open task not changed (`modifiedAt`) for Settings' Stale after or more (`utils/stale.isStale`). Stale after `0` is off, and `stale` then keeps nothing.
+- `due soon` / `followup soon`: that date is late, or within Settings' due-soon range (`urgentDueWithinDays`, `utils/urgency.isDueNear`). With the range off only a late date is soon. A task without the date is never soon.
+
+They are atoms of their own (`{ kind: 'stale' }`, `{ kind: 'soon', field }`), checked against `FilterSettings.staleAfterDays` and `urgentRange`. No chip says them, so Graphical can't hold them. In words they read `stale`, `due soon` and `follow-up soon`. A Number's history counts `stale` as reading the modified date, and `soon` its date.
 
 ### The expression field
 

@@ -100,6 +100,8 @@
 
 .ruler[data-axis='rows'] {
   flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
   justify-self: start;
   width: var(--header-band);
   margin-left: calc(3px - var(--edit-frame-start));
@@ -107,8 +109,23 @@
   contain: size;
 }
 
-/* A row's mark runs down its header, giving way first in a short row. */
+/* Each part the header's full width: a mark that doesn't fit under the
+ * number wraps to a second column, past the header's edge, so it is hidden
+ * whole rather than cut mid-word. */
+.ruler[data-axis='rows'] > * {
+  width: 100%;
+}
+
+.ruler[data-axis='rows'] .name {
+  text-align: center;
+}
+
+/* A row's mark runs down its header, giving way in a short row. */
 .ruler[data-axis='rows'] .note {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  overflow: visible;
   writing-mode: vertical-rl;
   text-transform: uppercase;
   letter-spacing: 0.04em;

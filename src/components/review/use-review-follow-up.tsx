@@ -164,9 +164,14 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
     followUpWords + (hasUpdate && fieldDate !== 'invalid' ? ', and add the status update' : ''),
   )
 
+  // The main button's words: `Mark reviewed` while it would leave no next follow-up (Next empty, nothing
+  // proposed, or cleared); the same write either way.
+  const markLabel = fieldDate === null ? 'Mark reviewed' : 'Mark followed up'
+
   return {
     todo,
     today,
+    markLabel,
     draft,
     setDraft: (text: string) => session.getState().setDraft(todoId, text),
     input,

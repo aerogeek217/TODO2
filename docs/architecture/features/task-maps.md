@@ -4,34 +4,61 @@ The task maps are whole widgets that draw many tasks at once: the Neglect map (k
 
 ## Neglect map
 
-It plots every open task the screen filter keeps by days untouched (`modifiedAt`, capped at 60) against days until due (14 late … 30 ahead). The pure placement is in `utils/neglect-map`.
+It plots every open task the screen filter keeps by days untouched (`modifiedAt`, capped at 60) against days until its date (14 late … 30 ahead). The pure placement is in `utils/neglect-map`.
+
+- **A task's date** is the earlier of its due date and its next follow-up (the due date on a tie). The row and the dot's tooltip name the one that placed it: `2d late`, `due in 3d`, `follow-up today`, `follow-up 2d late`.
+- **A task whose only date is a planned day is left off the map**: no dot, no zone, no count. The Planner holds it.
+- **Untouched is Settings' Stale after** (`staleAfterDays`, read live), the filter word `stale` ([Filters](filters.md#the-words-that-read-settings)). The map has no threshold of its own.
+- **Soon is Settings' due-soon range**, the filter words `due soon` / `followup soon`: late, or within the range (`utils/urgency.isDueNear`).
+
+The axes' marks: `14d late` · `Today` · `+Nd` (the due-soon line) · `+30d` down, `0d` · Stale after · `30d` · `60d+ untouched` across. `+Nd` and `30d` give way where their label would come within 4px of a neighbor's in the plot as measured (`utils/neglect-labels.uncrowdedMarks`); the others always show.
+
+Stale after's line, its mark, the shaded Slipping corner and the strip's Forgotten part are drawn only while it is on and under the 60-day cap (`staleLineShown`). Past the cap a task is still stale by its real days, on the cap. With Stale after `0` (off) nothing is stale, so nothing is Slipping, Drifting or Forgotten.
 
 ### Zones
 
-- A task due soon (Settings' due-soon range) or late, and untouched for the tab's threshold ([Config](#config)), is **Slipping**: the shaded corner.
-- The other corners are In hand, Planned and Drifting.
-- A strip under the plot holds the tasks without a due date. They are **Forgotten** once untouched.
+- A task due or to follow up soon or late, and stale, is **Slipping**: the shaded corner.
+- The other corners are In hand (soon, not stale), **Later** (later, not stale) and Drifting (later, stale).
+- A strip under the plot holds the tasks with neither date. They are **Forgotten** once stale.
 - Each zone's word carries its count and opens its tasks as a list in the task dialog (`glance-drills.neglectZoneDrill`). A zone with none is plain words.
-- The words are the four corners', and the strip's No due date (every task without one) and Forgotten.
+- The words are the four corners', and the strip's **No dates** (every task in it) and Forgotten.
 
-### Slipping list
+### Review these
 
-- The numbered Slipping list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot.
+Slipping, Drifting and Forgotten each have a **Review** button while they hold a task: a 22px icon beside the zone's word, shown while the pointer is on the map (always on a phone), and a `Review` button at the end of the list's header for the zone it shows. Named `Review the 4 slipping tasks`.
+
+- **It always opens the popup review** (`services/review-jump.jumpToPopupReview` → `widget-popup.openReviewPopup`), even when the layout has a Review widget, which keeps what it was reviewing.
+- **The filter is the zone as an expression** in the words that read Settings (`services/review.neglectZoneReviewFilter`), so the Review field shows it:
+  - Slipping: `(due soon or followup soon) and stale`;
+  - Drifting: `(due any or followup any) and not due soon and not followup soon and stale`;
+  - Forgotten: `no due and no followup and planned none and stale`.
+- Each hidden status that still exists adds `and not !Status`.
+- **The counts match the review.** The map and the review's live queue both start from the screen-filtered tasks (`useStatsBase().shown`), so the screen filter is in both alike. The review keeps its own sort.
+- The zone's word still opens its tasks in the task dialog.
+
+### The list
+
+- The list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot. It is the medium face alone.
 - Narrower, the plot fills the widget, there is no list, and the dots carry no numbers.
+- **A switch over it, `Slipping N | Forgotten N`, picks the zone it lists.** The picked side has a tint and its word its zone's color. Until one is picked, it shows Slipping, or Forgotten while nothing is slipping and something is forgotten. The pick is never saved.
+- Slipping lists latest first, then the longest untouched, numbered as its dots are badged. Forgotten lists the longest untouched first, each row with a yellow dot, and the plot's dots carry no numbers.
+- A row reads the date that placed it and the days untouched (`no dates · 63d untouched`). It opens the editor.
+- Past nine rows, `N more` opens the zone's tasks in the task dialog. The small face keeps the Slipping count.
 
 ### Dots
 
-- A dot opens the editor.
+- A dot opens the editor. It takes a press 24px round, though drawn at 9px (an `::after`); where two overlap, the dot on top takes it.
 - A drag on empty plot lassoes dots into the widget selection, which the bulk bar acts on.
 
 ### Config
 
-The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy` and `untouchedDays`, both set in its ⋯. The tab has no view state.
+The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy` and `hiddenStatusIds`, both set in its ⋯ (`neglect-menu`). The tab has no view state.
 
 - **Color by** is `colourBy` (`NeglectColourBy`): the picked tags (`{ kind: 'tags', tagIds }`), People (`{ kind: 'people' }`) or None (`{ kind: 'none' }`).
 - A deleted tag stays in `tagIds` and stops coloring, as in a filter.
-- The threshold is `untouchedDays`: a whole number from 1 to 59 (`isNeglectUntouchedDays`, `NEGLECT_UNTOUCHED_MAX`), so its line stays left of the 60-day cap. The menu offers 7, 14, 21, 30 and 45 (`NEGLECT_UNTOUCHED_CHOICES`).
-- A new map (`defaultNeglectConfig`) colors by the `Project: …` tags at 14 days (`DEFAULT_NEGLECT_UNTOUCHED_DAYS`). The workspace store passes those tags as `TabSeed.neglectTagIds` (`utils/neglect-map.projectTagIds`).
+- **Hide statuses ›** is `hiddenStatusIds` (absent: none): a checkbox per status, its mark in its color, the item's value naming the hidden ones (`None` when none). A task with a hidden status leaves every zone, count and Review. A deleted status's id stays and hides nothing.
+- A new map (`defaultNeglectConfig`) colors by the `Project: …` tags. The workspace store passes those tags as `TabSeed.neglectTagIds` (`utils/neglect-map.projectTagIds`).
+- The layout repair (`data/layout-shape.pickNeglectConfig`) keeps only the model's keys. A stored `untouchedDays` is dropped quietly, with no repair notice and no schema step.
 
 ### Names beside dots
 

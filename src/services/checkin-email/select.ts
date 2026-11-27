@@ -4,11 +4,10 @@
  */
 import type { Person, PersistedTodoItem, Status, StatusUpdate, Subtask, Tag } from '../../models'
 import { todoNameLookups } from '../../utils/filter'
-import { createPredicateEvaluator } from '../../utils/filter-match'
+import { createPredicateEvaluator, type FilterSettings } from '../../utils/filter-match'
 import { checkinFilterOf, isNoCheckinFilter, type CheckinTaskFilter } from '../../utils/checkin-settings'
 import { startOfDay } from '../../utils/date'
 import { isDeadlinePast, type WeekStart } from '../../utils/effective-date'
-import type { MarkerSettings } from '../../utils/markers'
 import { bySortOrder } from '../../utils/sort-order'
 
 export interface CheckinSelectContext {
@@ -26,8 +25,8 @@ export interface CheckinSelectContext {
   statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
   /** Each task's checklist (the filter's text search reads its titles). */
   subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
-  /** The urgent range (the filter's Priority clause). */
-  markerSettings: MarkerSettings
+  /** The urgent range (the filter's Priority clause, `due soon`) and Stale after (`stale`). */
+  markerSettings: Omit<FilterSettings, 'weekStartsOn'>
   weekStartsOn: WeekStart
 }
 

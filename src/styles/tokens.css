@@ -698,12 +698,14 @@
   --color-dash-panel: rgba(0, 0, 0, 0.018);
   --color-chart-created: rgba(0, 0, 0, 0.16);
 
-  /* Accent — deepened for contrast on light backgrounds */
-  --color-accent: #2f9a8f;
-  --color-accent-dim: #2d7d74;
-  /* The accent as text: darkened to 5.3:1 on the surface (4.9:1 on the
-     elevated surface), mixed from the accent so a colour override carries over. */
-  --color-accent-text: color-mix(in srgb, var(--color-accent) 76%, black);
+  /* Accent — deepened for contrast on light backgrounds: white text on it
+     (`--color-text-on-accent`) at 5.1:1. Dim is its hover, darker still. */
+  --color-accent: #1f7a70;
+  --color-accent-dim: #19635b;
+  /* The accent as text: 5.3:1 on the surface (4.9:1 on the elevated surface).
+     A colour override of the accent sets it inline from the override
+     (`settings-store.applyColorOverrides`). */
+  --color-accent-text: #24756d;
 
   /* Danger / warning — deepened for readability */
   --color-danger: #d94a43;

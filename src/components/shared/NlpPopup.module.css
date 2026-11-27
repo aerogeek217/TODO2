@@ -73,6 +73,9 @@
 .icon[data-command="due"] { color: var(--color-overdue); }
 .icon[data-command="followup"] { color: var(--color-followup); }
 .icon[data-command="repeat"] { color: var(--color-accent-text); }
+/* A sweep's icon in the Neglect map zone's color (Slipping, Forgotten). */
+.icon[data-tone="deadline"] { color: var(--color-deadline); }
+.icon[data-tone="followup"] { color: var(--color-followup); }
 
 .dot {
   width: 8px;
@@ -103,7 +106,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A group's heading inside the list (`People`, `Tags`, `Status`). */
+/* A group's heading inside the list (`Sweeps`, `People`, `Tags`, `Status`). */
 .section {
   padding: 6px 8px 2px;
   font-size: var(--font-size-xs);

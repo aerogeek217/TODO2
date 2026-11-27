@@ -206,7 +206,7 @@ function buildSeed(): Seed {
           const k3 = cell('k3', [
             numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
-            { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
+            { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] } } },
             // Work clusters (no settings).
             { id: 't22', kind: 'clusters', config: {} },
             // List boards: this layout's lists (its picks kept), and lists of any layout, in order (a deleted one's id kept).

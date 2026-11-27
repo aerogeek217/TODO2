@@ -202,7 +202,7 @@ describe('what a planned clause keeps', () => {
   })
 
   it('through the whole filter: a clause, the expression', () => {
-    const settings: FilterSettings = { weekStartsOn: 0, urgentRange: null }
+    const settings: FilterSettings = { weekStartsOn: 0, urgentRange: null, staleAfterDays: 30 }
     const run = (p: Parameters<typeof predicateToCriteria>[0]) => [planned, missed, dueOnly, none].map((t) => matchesFilter(predicateToCriteria(p), t, [], TODAY, undefined, [], settings))
     expect(run({ ...emptyPredicate(), dates: { planned: { match: 'unset' } } })).toEqual([false, false, true, true])
     expect(run({ ...emptyPredicate(), expression: tree('not planned none') ?? undefined })).toEqual([true, true, false, false])

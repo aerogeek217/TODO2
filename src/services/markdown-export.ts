@@ -4,6 +4,7 @@ import { bySortOrder } from '../utils/sort-order'
 import { formatDateNumeric, startOfToday } from '../utils/date'
 import { compareStatusUpdates } from '../utils/status-updates'
 import { compareSubtasks } from '../utils/subtasks'
+import { trimTrailingNewlines } from './notes-export'
 import { formatTaskLine, taskLineParts } from './task-copy'
 
 /**
@@ -20,7 +21,7 @@ function statusUpdatesItem(updates: readonly StatusUpdate[]): string[] {
  * stay inside it instead of breaking the list).
  */
 function notesItem(notes: string): string[] {
-  const noteLines = notes.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n')
+  const noteLines = trimTrailingNewlines(notes.replace(/\r\n?/g, '\n')).split('\n')
   if (noteLines.length === 1) return [`- **Notes:** ${noteLines[0] ?? ''}`]
   return ['- **Notes:**', '', ...noteLines.map((l) => (l.trim() === '' ? '' : `  ${l}`))]
 }

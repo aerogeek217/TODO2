@@ -90,11 +90,11 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'cells[0].tabs[0].viewState.detailsWidth'],
   ['negative details width', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: -1 } })), 'cells[0].tabs[0].viewState.detailsWidth'],
   ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'cells[0].tabs[0].viewState.zoom'],
-  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'cells[0].tabs[0].config.colourBy'],
-  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' }, untouchedDays: 14 } })), 'cells[0].tabs[0].config.colourBy'],
-  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 }, untouchedDays: 14 } })), 'cells[0].tabs[0].config.colourBy'],
-  ['Neglect map threshold past the cap', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 60 } })), 'cells[0].tabs[0].config.untouchedDays'],
-  ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'cells[0].tabs[0].config.untouchedDays'],
+  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: {} })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' } } })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 } } })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map hidden statuses not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: 2 } })), 'cells[0].tabs[0].config.hiddenStatusIds'],
+  ['Neglect map hidden status not a number', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: ['2'] } })), 'cells[0].tabs[0].config.hiddenStatusIds'],
 ]
 
 /**
@@ -120,7 +120,7 @@ const EVERY_KIND = {
     ] },
     { id: 'k3', area: { col: 2, row: 0, colSpan: 1, rowSpan: 2 }, tabs: [
       { id: 't6', kind: 'notes', config: {} },
-      { id: 't7', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 9] }, untouchedDays: 21 } },
+      { id: 't7', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 9] } } },
     ] },
     { id: 'k2', area: { col: 0, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [] },
     { id: 'k4', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't8', kind: 'notes', config: {} }] },
@@ -390,14 +390,27 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(tabOf(bad)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300 } })
   })
 
-  it('a Neglect map’s config keeps only its keys; a bad part falls back to its default', () => {
+  it('a Neglect map’s config keeps only its keys (a stored untouchedDays goes quietly); a bad part falls back to its default', () => {
     const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
     const valid = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 3, 5], extra: 1 }, untouchedDays: 7, x: 1 }, viewState: { detailsWidth: 300 } }))
     expect(rowFixes('layouts', valid)).toEqual([])
-    expect(tabOf(valid)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 5] }, untouchedDays: 7 } })
+    expect(tabOf(valid)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 5] } } })
     const bad = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'rainbow' }, untouchedDays: 0 } }))
     expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
-    expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } })
+    expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' } } })
+  })
+
+  it('a Neglect map’s hidden statuses: kept, a repeat once; a bad list keeps its numbers, or goes', () => {
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
+    const kept = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4, 2, 4] } }))
+    expect(rowFixes('layouts', kept)).toEqual([])
+    expect(tabOf(kept)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4, 2] } })
+    const mixed = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4, 'x'] } }))
+    expect(rowFixes('layouts', mixed)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(mixed)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: [4] } })
+    const bad = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, hiddenStatusIds: 'all' } }))
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' } } })
   })
 
   it('any corruption of a valid layout repairs into a valid one', () => {

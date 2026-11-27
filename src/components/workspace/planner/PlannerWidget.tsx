@@ -7,6 +7,7 @@ import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
+import { useWeekLoad } from '../../../hooks/use-week-load'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { clearDelayedPlans, movePlannerTask, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
 import { doneTodayTaskDialog } from '../../../services/task-dialog'
@@ -225,6 +226,8 @@ function PlannerBody({ tab, layout, size, hostRef }: {
   // The phone has no fold: a completed row leaves at once, as a list's.
   const data = usePlanner(tab, !isMobile)
   const { view, offset, badge, windowKey, keptTodos } = data
+  // One week load for both meters (the top line's and the body's bar), whichever shows.
+  const weekLoad = useWeekLoad()
   const stack = layout === 'stack'
   // Alone in its cell the top line shows: in the portrait layout the week arrows move there, giving the tiles the strip's width.
   const alone = useContext(CellControlsContext) != null
@@ -329,10 +332,10 @@ function PlannerBody({ tab, layout, size, hostRef }: {
             <BadgeCapsule counts={badge.counts} label={badge.summary.join('; ')} data-testid="planner-badge" />
           )}
           <span className={styles.topLineGap} aria-hidden="true" />
-          <WeekLoadMeter />
+          <WeekLoadMeter load={weekLoad} />
           <PlannerResetButton tab={tab} />
         </WidgetNameLine>
-        <WeekLoadMeter bar alone={alone} />
+        <WeekLoadMeter load={weekLoad} bar alone={alone} />
         {(tiles || !alone) && (
           <PlannerStrip
             tabId={tabId}

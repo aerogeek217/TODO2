@@ -10,6 +10,7 @@ import styles from './ExpressionPills.module.css'
 function pillTint(term: FilterAtom | undefined): TokenTint {
   if (term?.kind === 'priority') return term.value === NO_PRIORITY ? 'chip' : markerTint(term.value)
   if (term?.kind === 'date') return term.field === 'deadline' ? 'due' : term.field === 'followup' || term.field === 'lastFollowup' ? 'followup' : 'chip'
+  if (term?.kind === 'soon') return term.field === 'deadline' ? 'due' : 'followup'
   return 'chip'
 }
 

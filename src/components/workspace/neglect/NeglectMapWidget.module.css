@@ -178,6 +178,58 @@
   box-shadow: var(--focus-ring);
 }
 
+/* A reviewable zone's word and its Review button, placed in its corner as one. */
+.zoneGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The word inside a group takes the group's type (a button doesn't inherit it). */
+.groupWord {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
+/*
+ * A zone's Review (the board's 22px icon), shown while the pointer is on the
+ * map or the button has the focus, always on a phone. Its negative margin
+ * keeps the word where it stands.
+ */
+.zoneReview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: -5px 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-accent-text);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: auto;
+}
+
+.chart:hover .zoneReview,
+.touch .zoneReview,
+.zoneReview:focus-visible {
+  opacity: 1;
+}
+
+.zoneReview:hover {
+  background: var(--color-tint-10);
+}
+
+.zoneReview:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 .cornerSlipping {
   top: 0;
   /* Clear of the cell's floating controls when it has no name line. */
@@ -191,7 +243,7 @@
   left: 0;
 }
 
-.cornerPlanned {
+.cornerLater {
   bottom: 0;
   left: 0;
 }
@@ -296,6 +348,18 @@
   transition: transform var(--transition-fast);
 }
 
+/* A 24px round press around the drawn dot; where two overlap, the dot on top takes it. */
+.dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: max(100%, 24px);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .dot[data-marked='true'] {
   --dot-size: 13px;
 }
@@ -397,11 +461,54 @@
   overflow-y: auto;
 }
 
+/* At the body's top right (beside the plot, or the medium face): clear of the cell's floating controls; Review wraps under the switch when narrow. */
 .slipHead {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 0 calc(4px + var(--cell-controls-reserve, 0px)) 0 4px;
+}
+
+/* A phone's list sits under the plot. */
+.touch .slipHead {
+  padding-right: 4px;
+}
+
+/* `Slipping N | Forgotten N`: which list shows. */
+.listSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listSegment {
+  display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 0 4px;
+  gap: 5px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.listSegment[aria-pressed='true'] {
+  background: var(--color-tint-8);
+}
+
+.listSegment:hover {
+  background: var(--color-tint-5);
+}
+
+.listSegment[aria-pressed='true']:hover {
+  background: var(--color-tint-10);
+}
+
+.listSegment:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .slipTitle {
@@ -410,6 +517,51 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-deadline);
+}
+
+.listSegment[aria-pressed='false'] .slipTitle {
+  color: var(--color-text-muted);
+}
+
+.listSegment[data-list-zone='forgotten'][aria-pressed='true'] .slipTitle {
+  color: var(--color-followup);
+}
+
+/* The list's Review, at the end of its header: the shown zone's tasks in the popup review. */
+.listReview {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.listReview:hover {
+  background: var(--color-tint-10);
+}
+
+.listReview:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* A Forgotten row's mark, where a Slipping row has its number. */
+.forgottenDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 5px 3px 0;
+  border-radius: 50%;
+  background: var(--color-followup);
 }
 
 .slipCount {
@@ -635,4 +787,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A status's mark beside its name in the Hide statuses submenu, in the status's color (14px, as the board). */
+.statusMark {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  font-size: var(--font-size-body);
 }

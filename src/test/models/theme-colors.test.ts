@@ -47,12 +47,14 @@ describe('theme colour seeds', () => {
 })
 
 describe('priorityTintText (cr34 U6)', () => {
-  it.each(['dark', 'light'] as const)('%s: Focus’s own colour as its token’s text is what the stylesheet does to the accent', (theme) => {
+  it.each(['dark', 'light'] as const)('%s: with no override Focus’s token text is the accent’s text colour', (theme) => {
     const tokens = declarations(css, THEME_RULES[theme])
-    // With no override the token's text follows the accent's text colour …
     expect(tokens.get('--color-marker-focus-text')).toBe('var(--color-accent-text)')
-    // … so an override gets the same treatment: the colour itself (dark), darkened (light).
-    expect(priorityTintText(theme, 'var(--color-accent)')).toBe(tokens.get('--color-accent-text'))
+  })
+
+  it('dark: an override gets what the stylesheet does to the accent, the colour itself', () => {
+    const tokens = declarations(css, THEME_RULES.dark)
+    expect(priorityTintText('dark', 'var(--color-accent)')).toBe(tokens.get('--color-accent-text'))
   })
 
   it('the light theme darkens the colour; the dark theme keeps it', () => {

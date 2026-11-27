@@ -30,7 +30,7 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     todos: SAMPLE_TASKS,
     today: SAMPLE_TODAY,
     weekStartsOn: 0,
-    markerSettings: { urgentRange: 3 },
+    markerSettings: { urgentRange: 3, staleAfterDays: 30 },
     assignedPeopleMap: ASSIGNED_PEOPLE,
     assignedTagsMap: ASSIGNED_TAGS,
     people: PEOPLE,

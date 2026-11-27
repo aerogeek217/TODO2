@@ -46,7 +46,7 @@ function counterTotal(screen: FilterCriteria): number {
     todos: TASKS,
     today: new Date(),
     weekStartsOn: 1 as const,
-    markerSettings: { urgentRange: 3 as const },
+    markerSettings: { urgentRange: 3 as const, staleAfterDays: 30 },
     assignedPeopleMap: usePersonStore.getState().assignedPeopleMap,
     assignedTagsMap: new Map(),
     statuses: [],

@@ -195,3 +195,30 @@ export function placeNeglectLabels(
   }
   return placed
 }
+
+/** An axis mark's label along its axis, px in the axis: where it starts and ends. */
+interface AxisMarkSpan {
+  key: string
+  start: number
+  end: number
+}
+
+/** Under this many px between two axis marks' labels, the one that may give way does. */
+const NEGLECT_MARK_MIN_GAP_PX = 4
+
+/**
+ * The axis marks to draw: all of them, but the `optional` one (the y axis's
+ * `+Nd`, the x axis's `30d`) gives way when its label comes within
+ * `NEGLECT_MARK_MIN_GAP_PX` of a neighbour's, or overlaps it.
+ */
+export function uncrowdedMarks<T extends AxisMarkSpan>(marks: readonly T[], optional: string): T[] {
+  const sorted = [...marks].sort((a, b) => a.start - b.start)
+  const i = sorted.findIndex((m) => m.key === optional)
+  const mark = sorted.at(i)
+  if (i < 0 || !mark) return [...marks]
+  const prev = i > 0 ? sorted.at(i - 1) : undefined
+  const next = sorted.at(i + 1)
+  const crowded = (prev != null && mark.start - prev.end < NEGLECT_MARK_MIN_GAP_PX)
+    || (next != null && next.start - mark.end < NEGLECT_MARK_MIN_GAP_PX)
+  return crowded ? marks.filter((m) => m.key !== optional) : [...marks]
+}

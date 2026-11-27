@@ -1,9 +1,18 @@
 /* The layout edit mode's widget tray (E3, `LayoutEditTray`): chips in the
- * mode bar's free room, scrolling sideways when it is narrow (no bar). */
+ * mode bar's free room, scrolling sideways when it is narrow (no bar), and
+ * More › after them, outside the scroller, so it is never clipped. */
 
 .tray {
   display: flex;
   flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scroller {
+  display: flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -12,7 +21,7 @@
   padding: 2px 0;
 }
 
-.tray::-webkit-scrollbar {
+.scroller::-webkit-scrollbar {
   display: none;
 }
 

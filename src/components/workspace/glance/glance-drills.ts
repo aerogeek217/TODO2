@@ -1,6 +1,7 @@
 import { DEFAULT_TREND_NAME, type NumberBreakdown } from '../../../models/glance-widgets'
 import { formatFollowupDay } from '../../../utils/followup'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
+import type { NeglectZone } from '../../../utils/neglect-map'
 import { trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
 
@@ -133,30 +134,34 @@ export function trendCumulativeDrill(
 
 // The Neglect map's Slipping list: the tasks it counted (screen-filtered).
 
-/** What each Neglect map zone holds, in a sentence (`days`: the tab's untouched threshold). */
-const NEGLECT_ZONE_DRILLS: Record<string, { title: string; describe: (days: number) => string }> = {
-  slipping: { title: 'Slipping', describe: (days) => `Open tasks due soon or late and not changed in ${days} days or more.` },
-  inHand: { title: 'In hand', describe: (days) => `Open tasks due soon or late that changed in the last ${days} days.` },
-  planned: { title: 'Planned', describe: (days) => `Open tasks due later that changed in the last ${days} days.` },
-  drifting: { title: 'Drifting', describe: (days) => `Open tasks due later and not changed in ${days} days or more.` },
-  noDue: { title: 'No due date', describe: () => 'Open tasks without a due date.' },
-  forgotten: { title: 'Forgotten', describe: (days) => `Open tasks without a due date and not changed in ${days} days or more.` },
+/** ` and not changed in 30 days or more` / ` that changed in the last 30 days`; nothing while Stale after is off (0). */
+const staleWords = (days: number, stale: boolean) => {
+  if (days <= 0) return ''
+  return stale ? ` and not changed in ${days} days or more` : ` that changed in the last ${days} days`
 }
 
-/** A Neglect map zone's tasks, as its word opens them: `zone` is the map's zone key (`noDue`: every task without a due date). */
-export function neglectZoneDrill(zone: string, todoIds: readonly number[], days: number): GlanceDrill {
-  const spec = NEGLECT_ZONE_DRILLS[zone] ?? NEGLECT_ZONE_DRILLS.slipping!
+const SOON = 'Open tasks due or to follow up soon or late'
+const LATER = 'Open tasks due or to follow up later'
+const NO_DATES = 'Open tasks with no due date, next follow-up or planned day'
+
+/** What each Neglect map zone holds, in a sentence (`days`: Settings' Stale after). */
+const NEGLECT_ZONE_DRILLS: Record<NeglectZone, { title: string; describe: (days: number) => string }> = {
+  slipping: { title: 'Slipping', describe: (days) => `${SOON}${staleWords(days, true)}.` },
+  inHand: { title: 'In hand', describe: (days) => `${SOON}${staleWords(days, false)}.` },
+  later: { title: 'Later', describe: (days) => `${LATER}${staleWords(days, false)}.` },
+  drifting: { title: 'Drifting', describe: (days) => `${LATER}${staleWords(days, true)}.` },
+  noDates: { title: 'No dates', describe: () => `${NO_DATES}.` },
+  forgotten: { title: 'Forgotten', describe: (days) => `${NO_DATES}${staleWords(days, true)}.` },
+}
+
+/**
+ * A Neglect map zone's tasks, as its word opens them: `zone` is the map's
+ * zone key (`noDates`: every task in the strip, Forgotten too); `days` is
+ * Settings' Stale after.
+ */
+export function neglectZoneDrill(zone: NeglectZone, todoIds: readonly number[], days: number): GlanceDrill {
+  const spec = NEGLECT_ZONE_DRILLS[zone]
   return { title: spec.title, glyph: 'stale', description: spec.describe(days), source: { kind: 'todos', todoIds } }
-}
-
-/** A Neglect map's Slipping tasks, untouched for `days` or more. */
-export function slippingDrill(todoIds: readonly number[], days: number): GlanceDrill {
-  return {
-    title: 'Slipping',
-    glyph: 'stale',
-    description: `Open tasks due soon or late and not changed in ${days} days or more.`,
-    source: { kind: 'todos', todoIds },
-  }
 }
 
 // ── The task maps (2026-11-18) ──────────────────────────────────────────────

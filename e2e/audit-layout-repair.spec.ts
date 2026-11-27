@@ -58,9 +58,9 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
   expect(await readStore(page, 'layouts')).toEqual([expect.objectContaining({
     id: active,
     name: 'Daily',
-    // The size reset (the axis's only weight: the default), the retired tab gone, the notes tab kept.
+    // The size reset (the axis's only weight: the default), the retired tab gone, the notes tab kept with its icon.
     grid: { columns: [expect.objectContaining({ weight: 1000 })], rows: [expect.objectContaining({ weight: 1000 })] },
-    cells: [expect.objectContaining({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes', config: {} }] })],
+    cells: [expect.objectContaining({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes', config: {}, icon: { kind: 'line', key: 'notes' } }] })],
   })])
 
   // The workspace reloaded the repaired row.

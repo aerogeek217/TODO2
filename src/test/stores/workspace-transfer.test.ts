@@ -8,6 +8,7 @@ import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-st
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useUIStore } from '../../stores/ui-store'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import { cell, grid, single, freshNumberTab } from '../helpers/layout-builders'
 
@@ -333,6 +334,57 @@ describe('while carrying', () => {
     expect(undoStore().snackbar?.description).toMatch(/^Finish editing the layout to undo: Moved “Inbox” to “B”/)
     expect(undoNames()).toEqual(['Moved “Inbox” to “B”'])
     expect(tabIds(await stored(w.b))).toContain('lt')
+  })
+})
+
+describe('Save at a leave’s question with the widgets still in hand', () => {
+  const NOTHING_MOVED = 'Nothing moved. Place the widgets before saving to move them.'
+  const body = (l: Awaited<ReturnType<typeof stored>>) => ({ cells: l.cells, grid: l.grid, modifiedAt: l.modifiedAt })
+  /** Lets the leave's question come up. */
+  const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0)) }
+
+  it('calls the move off: both layouts as they were, no step, the switch goes on, a notice says so', async () => {
+    const w = await world()
+    const c = await layoutRepository.insert(row('C', single(cell('kc', [createTab('notes', 'ct')]), { prefix: 'C-' })))
+    await ws().init()
+    const aBefore = await stored(w.a)
+    const bBefore = await stored(w.b)
+    expect(await ws().transferTo(w.b, { kind: 'tab', tabId: 'lt' }, false)).toBe(true)
+    // An edit, not the placing: the draft has changes, so the switch asks.
+    ws().splitCell('kb', 'right')
+    const switching = ws().load(c)
+    await settle()
+    expect(useUIStore.getState().confirmPrompts[0]).toMatchObject({ title: 'Save changes to layout “B”?', confirmLabel: 'Save' })
+    useUIStore.getState().answerConfirmation('confirm')
+    await switching
+    expect(ws().editing).toBeNull()
+    expect(ws().activeLayoutId).toBe(c)
+    expect(body(await stored(w.a))).toEqual(body(aBefore))
+    expect(body(await stored(w.b))).toEqual(body(bBefore))
+    expect(await ownerOf(w.list)).toEqual({ layoutId: w.a })
+    expect(undoNames()).toEqual([])
+    expect(undoStore().snackbar).toEqual({ description: NOTHING_MOVED, notice: true })
+  })
+
+  it('a layout made for the move is deleted, and nothing is left of it', async () => {
+    const w = await world()
+    const aBefore = await stored(w.a)
+    const bBefore = await stored(w.b)
+    expect(await ws().transferTo({ newName: 'C' }, { kind: 'tab', tabId: 'nt' }, false)).toBe(true)
+    const cId = ws().activeLayoutId!
+    // An edit, not the placing: a Calendar added to the empty layout.
+    expect(ws().addWidget('calendar', { kind: 'layout' })).not.toBeNull()
+    const switching = ws().load(w.b)
+    await settle()
+    useUIStore.getState().answerConfirmation('confirm')
+    await switching
+    expect(ws().editing).toBeNull()
+    expect(ws().activeLayoutId).toBe(w.b)
+    expect(await db.layouts.get(cId)).toBeUndefined()
+    expect(ws().layouts.some((l) => l.id === cId)).toBe(false)
+    expect(body(await stored(w.a))).toEqual(body(aBefore))
+    expect(body(await stored(w.b))).toEqual(body(bBefore))
+    expect(undoStore().snackbar).toEqual({ description: NOTHING_MOVED, notice: true })
   })
 })
 

@@ -6,9 +6,10 @@ import { useExpressionField } from '../../../hooks/use-expression-field'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { mirrorCharX, useNlpPopupAnchor } from '../../../hooks/use-nlp-popup-anchor'
 import { ESCAPE_OWN_ATTR } from '../../../hooks/use-popover-anchor'
-import { reviewFilterPredicate } from '../../../hooks/use-review-widget-queue'
+import { reviewFilterPredicate, reviewSweepCounts } from '../../../hooks/use-review-widget-queue'
 import { expressionResolver } from '../../../services/filter-expression-field'
 import type { AutocompleteRow, computeAutocomplete } from '../../../services/nlp-autocomplete'
+import { REVIEW_SWEEPS } from '../../../services/review'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, type ReviewFieldCounts } from '../../../services/review-field'
 import { useListWidgetStore, type ReviewFilter } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -18,7 +19,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { startOfToday } from '../../../utils/date'
 import { parseExpression, printExpression, printPieces, withoutAtom, type ExpressionPiece } from '../../../utils/filter-expression'
 import { withExpression } from '../../../utils/predicate-expression'
-import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
+import { ChevronDownIcon, EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import { NlpPopup } from '../../shared/NlpPopup'
 import { ClearFunnel } from '../../shared/ClearFunnel'
 import { ExpressionPills } from '../../shared/filters/ExpressionPills'
@@ -39,10 +40,13 @@ const EVERY_OPEN_TASK = 'Every open task'
 /** A review takes open tasks only: `done` and Completed dates would keep nothing, so the field refuses them and says why. */
 const OPEN_TASKS_ONLY = { allowDone: false, allowCompleted: false } as const
 
+/** The ▾ at the field's end: what it opens. */
+const BROWSE_TIP = 'Browse people, tags, statuses and sweeps'
+
 /**
  * Each person's, tag's and status's open tasks among those the widget's
- * screen filter shows, from the
- * shared stats base — no database read on render or keystroke.
+ * screen filter shows, and each sweep's (counted as the queue counts), from
+ * the shared stats base — no database read on render or keystroke.
  */
 function useReviewFieldCounts(): ReviewFieldCounts {
   const base = useStatsBase()
@@ -57,7 +61,7 @@ function useReviewFieldCounts(): ReviewFieldCounts {
       for (const g of base.ctx.assignedTagsMap.get(t.id) ?? []) bump(tag, g.id)
       bump(status, t.statusId)
     }
-    return { person, tag, status }
+    return { person, tag, status, sweep: reviewSweepCounts(base) }
   }, [base])
 }
 
@@ -70,8 +74,10 @@ function useReviewFieldCounts(): ReviewFieldCounts {
  * filter is temporary**: kept per tab in memory (`list-widget-store
  * .reviewFilters`), never written to the layout, gone with a reload.
  *
- * A click on the field (or a focus while it is empty) lists people, tags and
- * statuses with their open tasks; bare letters match all three; `@ # ! /`
+ * A click on the field (or a focus while it is empty, or the ▾ at its end)
+ * lists people, tags and statuses with their open tasks — in an empty field
+ * after the sweeps (`REVIEW_SWEEPS`), a pick of one writing its whole
+ * filter; bare letters match all three; `@ # ! /`
  * open the expression field's popup (`services/review-field`). A pick writes
  * the name's token; after a whole term it joins the filter as chips combine
  * (one sort's names `or` together, the sorts `and`). ⏎ in a list of matches
@@ -184,12 +190,40 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
     field.onSelect(input)
   }
 
-  /** A row picked (a click, or ⏎ / Tab on the highlighted one): a name with its joining word; anything else as the popup writes it. */
+  /** The ▾: the browse list at the text's end, the field focused (a second press closes it). */
+  const toggleList = () => {
+    const input = inputRef.current
+    if (!input) return
+    if (ac.state.visible) {
+      browse.current = false
+      ac.dismiss()
+      return
+    }
+    input.focus()
+    const end = input.value.length
+    input.setSelectionRange(end, end)
+    openList(input)
+  }
+  const browseTip = useTooltip(BROWSE_TIP)
+
+  /**
+   * A row picked (a click, or ⏎ / Tab on the highlighted one): a sweep as
+   * its whole filter; a name with its joining word; anything else as the
+   * popup writes it.
+   */
   const pick = (row: AutocompleteRow) => {
     const view = ac.state.view
     const input = inputRef.current
     if (!view || !input) return
     browse.current = false
+    if (row.kind === 'sweep') {
+      const sweep = REVIEW_SWEEPS.find((s) => s.id === row.id)
+      if (!sweep) return
+      const next = `${printExpression(sweep.filter.expression, sweep.filter.showCompleted, field.names)} `
+      ac.dismiss()
+      field.apply(next, next.length, true)
+      return
+    }
     if (row.kind !== 'entity') {
       ac.select(row, input)
       return
@@ -217,7 +251,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
         return
       }
       const row = view.rows[selectedIndex]
-      if (row?.kind === 'entity') {
+      if (row?.kind === 'entity' || row?.kind === 'sweep') {
         e.preventDefault()
         e.stopPropagation()
         pick(row)
@@ -303,6 +337,20 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
               onKeyDown={onKeyDown}
             />
           </div>
+          <button
+            type="button"
+            className={styles.browseButton}
+            aria-label="Browse"
+            aria-expanded={ac.state.visible}
+            data-testid="review-field-browse"
+            {...browseTip.triggerProps}
+            // The field keeps the focus (and an open list stays to be closed by this press).
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={toggleList}
+          >
+            <ChevronDownIcon size={12} />
+          </button>
+          {browseTip.tooltip}
         </div>
         {checkinIds && <CheckinButtons personIds={checkinIds} />}
         {trailing}

@@ -55,8 +55,11 @@ const SAFE_URL_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:']
 /**
  * Returns a safe href for clipboard HTML. Uses an allowlist: only
  * `http(s)`, `mailto`, `tel`, and schemeless values (relative paths,
- * `#anchor`, `//host`) pass through. Everything else — `javascript:`,
- * `data:`, `vbscript:`, `file:`, `blob:`, etc. — is replaced with `'#'`.
+ * `#anchor`) pass through. Everything else — `javascript:`, `data:`,
+ * `vbscript:`, `file:`, `blob:`, etc. — is replaced with `'#'`, and so is
+ * any value that could reach another host without a scheme: protocol-
+ * relative `//host`, a UNC `\\host\share`, or anything with a backslash
+ * (browsers read `\` as `/` in a URL).
  *
  * Normalises for known obfuscation tricks before the scheme compare:
  * strips ASCII whitespace + control chars, decodes a leading numeric
@@ -75,10 +78,12 @@ export function sanitizeHref(raw: string): string {
   })
   // Strip ASCII whitespace + control chars (incl. \t, \n, \r, \0).
   s = stripControlAndWhitespace(s)
+  // Another host without a scheme: `//host`, `\\host\share`, `/\host`, `http:\\host`.
+  if (s.startsWith('//') || s.includes('\\')) return '#'
   const lower = s.toLowerCase()
   const colonIdx = lower.indexOf(':')
   const slashIdx = lower.indexOf('/')
-  // Schemeless (relative path, anchor, //host) — no colon before first slash.
+  // Schemeless (relative path, anchor) — no colon before first slash.
   // Return the stripped/decoded value (`s`) on allowed branches so we can't
   // smuggle whitespace or entity-obfuscated bytes past downstream consumers.
   if (colonIdx === -1) return s
@@ -87,20 +92,41 @@ export function sanitizeHref(raw: string): string {
   return SAFE_URL_SCHEMES.includes(scheme) ? s : '#'
 }
 
+/** Stands in for a link while the emphasis marks are read (dropped from the text first, so it is never the text's own). */
+const LINK_MARK = '\u0000'
+
+/** Bold, italic and inline code in already-escaped text. */
+function emphasisMd(s: string): string {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, (_m, text: string) => `<strong>${text}</strong>`)
+    .replace(/\*([^*]+)\*/g, (_m, text: string) => `<em>${text}</em>`)
+    .replace(/`([^`]+)`/g, (_m, text: string) => `<code>${text}</code>`)
+}
+
 function inlineMd(s: string): string {
   // The line is escaped once, up front, so every capture below is already
   // HTML-safe text and goes into the output as is (escaping it again would
   // show `Dana&#39;s` in the pasted text). A link target is the exception:
   // it is unescaped back to the raw URL, checked by `sanitizeHref`, and
   // escaped for the attribute.
-  const marked = escapeHtml(s)
-    .replace(/\*\*([^*]+)\*\*/g, (_m, text: string) => `<strong>${text}</strong>`)
-    .replace(/\*([^*]+)\*/g, (_m, text: string) => `<em>${text}</em>`)
-    .replace(/`([^`]+)`/g, (_m, text: string) => `<code>${text}</code>`)
-  return replaceMarkdownLinks(marked, (text, href) => {
+  //
+  // Links go first, each replaced by a numbered mark, so a `*` or `` ` `` in
+  // a URL can't open emphasis; the emphasis then reads the line with the
+  // marks in it (an emphasis around a link still wraps it), and the links
+  // go back in.
+  const links: string[] = []
+  const escaped = escapeHtml(s.split(LINK_MARK).join(''))
+  const marked = replaceMarkdownLinks(escaped, (text, href) => {
     const safe = sanitizeHref(unescapeHtml(href))
-    return `<a href="${escapeHtml(safe)}">${text}</a>`
+    links.push(`<a href="${escapeHtml(safe)}">${emphasisMd(text)}</a>`)
+    return `${LINK_MARK}${links.length - 1}${LINK_MARK}`
   })
+  if (links.length === 0) return emphasisMd(escaped)
+  // Split on the marks: every odd part is a link's number.
+  return emphasisMd(marked)
+    .split(LINK_MARK)
+    .map((part, i) => (i % 2 === 1 ? (links[Number(part)] ?? '') : part))
+    .join('')
 }
 
 /**
@@ -184,7 +210,7 @@ export function htmlToMarkdown(html: string): string {
 }
 
 /** Drops trailing `\n`s — a loop, as `/\n+$/` is quadratic on long runs of `\n`. */
-function trimTrailingNewlines(s: string): string {
+export function trimTrailingNewlines(s: string): string {
   let end = s.length
   while (end > 0 && s[end - 1] === '\n') end--
   return s.slice(0, end)
@@ -234,7 +260,8 @@ function walkNode(node: Node): string {
       const href = sanitizeHref(rawHref)
       const text = inner().trim() || href
       if (!rawHref) return text
-      return `[${text}](${href})`
+      // A bracket in the text would end the link's text early, or start another.
+      return `[${text.replace(/[[\]]/g, '\\$&')}](${href})`
     }
     case 'ul':
     case 'ol': {

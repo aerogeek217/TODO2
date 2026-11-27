@@ -403,6 +403,11 @@ function readExpressionNode(v: unknown, fixes: PredicateFix[], depth: number, bu
       if (m.includeNoDate === true) return { kind: 'or', items: [atom, { kind: 'date', field, match: { match: 'unset' } }] }
       return atom
     }
+    case 'stale':
+      return { kind: 'stale' }
+    case 'soon':
+      if (v.field !== 'deadline' && v.field !== 'followup') throw new BadExpression()
+      return { kind: 'soon', field: v.field }
     default:
       throw new BadExpression()
   }

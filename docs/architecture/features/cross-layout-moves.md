@@ -81,7 +81,9 @@ It is one undo step, `Moved “Errands” to “Second”` / `Copied …`, that 
 
 ## Cancel
 
-**Cancel** goes back to the source, and so does Esc while the widgets are still in hand; nothing is written. `cancelEdit` discards the draft, loads the source again and deletes a layout made for the move.
+**Cancel** goes back to the source, and so does Esc while the widgets are still in hand; nothing is written. `cancelEdit` discards the draft, loads the source again and deletes a layout made for the move (`callOffIncoming`).
+
+**Save at a leave's question** (a layout switch, Settings, … after another edit in the draft) while the widgets are still in hand calls the move off the same way: `finishEdit` discards the draft and writes nothing, so neither layout changes. A layout made for the move is left for the source and deleted; then the leave goes on. The notice says `Nothing moved. Place the widgets before saving to move them.`
 
 ## What goes with a tab
 

@@ -3,6 +3,7 @@ import type { FilterExpr } from '../../models'
 import type { AutocompleteItem, AutocompleteSources, AutocompleteView } from '../../services/nlp-autocomplete'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, withPick, type ReviewFieldCounts, type ReviewFieldText } from '../../services/review-field'
 import { parseExpression, printExpression } from '../../utils/filter-expression'
+import { expectWithin } from '../timing'
 
 /**
  * The Review widget's field (widget feedback 2A, board Review-field): the
@@ -35,6 +36,7 @@ const COUNTS: ReviewFieldCounts = {
   person: new Map([[1, 12], [2, 5], [3, 6], [4, 2]]),
   tag: new Map([[1, 9], [2, 4]]),
   status: new Map([[1, 4]]),
+  sweep: new Map([['forgotten', 14], ['slipping', 3], ['attention', 5]]),
 }
 
 /** Whether a text reads: the words this test uses as whole terms. */
@@ -44,15 +46,19 @@ function view(value: string, cursor = value.length, browse = false): Autocomplet
   return reviewFieldAutocomplete(value, cursor, SOURCES, { counts: COUNTS, browse, reads })
 }
 
-const names = (v: AutocompleteView | null) => v?.rows.map((r) => (r.kind === 'entity' ? `${r.section ? `${r.section}:` : ''}${r.item.name}${r.count != null ? ` ${r.count}` : ''}` : r.kind))
+const names = (v: AutocompleteView | null) => v?.rows.map((r) => {
+  if (r.kind === 'sweep') return `${r.section}:${r.label} ${r.count}${r.tone ? ` (${r.tone})` : ''}`
+  return r.kind === 'entity' ? `${r.section ? `${r.section}:` : ''}${r.item.name}${r.count != null ? ` ${r.count}` : ''}` : r.kind
+})
 
 describe('reviewFieldAutocomplete', () => {
-  it('a click on the empty field: people, tags and statuses under their headings, the most counted first', () => {
+  it('a click on the empty field: the sweeps in their order with their counts, then people, tags and statuses under their headings, the most counted first', () => {
     const v = view('', 0, true)
     expect(v?.trigger).toBeNull()
     expect(v?.mixed).toBe(true)
     expect(v?.header).toBe('')
     expect(names(v)).toEqual([
+      'Sweeps:Forgotten 14 (followup)', 'Sweeps:Slipping 3 (deadline)', 'Sweeps:Needs attention 5', 'Sweeps:No person 0',
       'People:Aisha 12', 'People:Marcus Chen 6', 'People:Ben 5', 'People:Marco Ruiz 2',
       'Tags:Project: Atlas 9', 'Tags:marketing 4',
       'Status:Waiting 4', 'Status:On Hold 0',
@@ -65,9 +71,11 @@ describe('reviewFieldAutocomplete', () => {
   })
 
   it('the whole list where a term may go: after an operator, after a whole term, inside parentheses — not inside a word or after an unfinished one', () => {
+    // The sweeps only in an empty field: each is a whole filter.
     expect(view('@Aisha and ', 11, true)?.rows).toHaveLength(8)
     expect(view('@Aisha ', 7, true)?.rows).toHaveLength(8)
     expect(view('(', 1, true)?.rows).toHaveLength(8)
+    expect(view('  ', 2, true)?.rows).toHaveLength(12)
     expect(view('marketing', 3, true)).toBeNull()
     expect(view('due ', 4, true)).toBeNull()
   })
@@ -202,5 +210,36 @@ describe('peopleOnly', () => {
     expect(peopleOnly({ kind: 'and', items: [p(1), { kind: 'tag', id: 2 }] })).toBeNull()
     expect(peopleOnly({ kind: 'or', items: [p(1), { kind: 'status', id: 2 }] })).toBeNull()
     expect(peopleOnly({ kind: 'not', item: p(1) })).toBeNull()
+  })
+})
+
+describe('the field on a long text', () => {
+  // The last token and the trim of `)` / space runs were read by regexes
+  // that retry from every position: quadratic, seconds at this length. Only
+  // the text's end is read for them now.
+  const N = 50_000
+
+  it('a long word closed by a parenthesis, and a long run of parentheses: fast', () => {
+    expectWithin(1000, () => {
+      expect(view(`${'a'.repeat(N)}) `, N + 2, true)?.rows).toHaveLength(8)
+      expect(view(`a${') '.repeat(N / 2)}`, N + 1, true)?.rows).toHaveLength(8)
+    })
+  })
+
+  it('a pick after a long text: fast', () => {
+    const head = `${'a'.repeat(N)}) `
+    expectWithin(1000, () => {
+      expect(pick(head, head.length, head.length, ben).value).toBe(`${'a'.repeat(N)}) and @Ben `)
+    })
+  })
+
+  it('reads the term before the place as before, however long the text before it', () => {
+    const pad = '#q4 and '.repeat(500)
+    // After an operator: no joining word.
+    expect(pick(`${pad}@Aisha or `, pad.length + 10, pad.length + 10, ben).value).toBe(`${pad}@Aisha or @Ben `)
+    // After a name, in a text that doesn't read yet: or for its own sort.
+    expect(pick(`${pad}@Aisha  (`, pad.length + 7, pad.length + 7, ben).value).toBe(`${pad}@Aisha or @Ben (`)
+    expect(view(`${pad}@Aisha a`)).toBeNull()
+    expect(view(`${pad}due `, pad.length + 4, true)).toBeNull()
   })
 })

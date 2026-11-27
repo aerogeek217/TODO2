@@ -100,11 +100,15 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await empty.getByRole('button', { name: 'Pick' }).click()
   await expect(field).toBeFocused()
   await expect(popup(page)).toBeVisible()
+  await expect(popup(page)).toContainText('Sweeps')
   await expect(popup(page)).toContainText('People')
   await expect(popup(page)).toContainText('Tags')
   await expect(popup(page)).toContainText('Status')
   const options = popup(page).getByRole('option')
-  await expect(options).toHaveText([/Aisha\s*4$/, /Ben\s*2$/, /Marcus Chen\s*0$/, /legal\s*2$/, /Waiting\s*1$/])
+  await expect(options).toHaveText([
+    /Forgotten\s*0$/, /Slipping\s*0$/, /Needs attention\s*2$/, /No person\s*0$/,
+    /Aisha\s*4$/, /Ben\s*2$/, /Marcus Chen\s*0$/, /legal\s*2$/, /Waiting\s*1$/,
+  ])
   // The list hangs under the field.
   const fieldBox = await w.locator('[data-prompt-row]').boundingBox()
   const popupBox = await popup(page).boundingBox()
@@ -117,7 +121,7 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await options.filter({ hasText: 'Aisha' }).click()
   await expect(field).toHaveValue('@Aisha ')
   await expect(popup(page)).toHaveCount(0)
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('4 left · 0 followed up')
   await expect(railRows(page, tabId)).toHaveCount(4)
 
   // Bare letters match people, tags and statuses at once; ⏎ takes the first — a second person joins with or.
@@ -137,7 +141,7 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await line.click()
   await line.fill('Legal signed off the clause')
   await page.keyboard.press('Enter')
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('1 followed up')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('4 left · 1 followed up')
 })
 
 test('a tag joins with and; @ still opens the expression popup; the field is temporary — nothing in the layout, gone with a reload', async ({ page }) => {
@@ -261,7 +265,7 @@ test('large face: sorted by Priority unless a sort is stored; a double-click on 
   await page.keyboard.press('Enter')
   await expect(cardTitle(page, 'rev1')).toHaveValue('Onboarding checklist')
   await expect(railRows(page, 'rev1').first()).toHaveAttribute('data-mark', 'done')
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('1 followed up')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('3 left · 1 followed up')
   await expect.poll(async () => isToday((await storedTask(page, 'Vendor contract renewal'))?.lastFollowupAt)).toBe(true)
   await expect(w.getByLabel('Status update · today')).toBeFocused()
 
@@ -282,13 +286,49 @@ test('large face: sorted by Priority unless a sort is stored; a double-click on 
   await expect(w.getByTestId('review-sort')).toContainText('Title')
 })
 
+test('the field’s ▾ opens the browse list with the sweeps on top; a sweep picked fills the field and reviews it', async ({ page }) => {
+  await seedWorkspace(page, largeSeed())
+  const w = widget(page, 'rev1')
+  const field = reviewField(page, 'rev1')
+  const browse = w.getByRole('button', { name: 'Browse' })
+  // 24 × 24 at the field's end, inside its border; its tooltip says what it lists.
+  const [browseBox, fieldBox] = [await browse.boundingBox(), await w.locator('[data-prompt-row] > div > div').first().boundingBox()]
+  if (!browseBox || !fieldBox) throw new Error('the ▾ and the field have boxes')
+  expect(Math.round(browseBox.width)).toBe(24)
+  expect(Math.round(browseBox.height)).toBe(24)
+  expect(browseBox.x + browseBox.width).toBeLessThanOrEqual(fieldBox.x + fieldBox.width)
+  expect(browseBox.x + browseBox.width).toBeGreaterThan(fieldBox.x + fieldBox.width - 6)
+  await browse.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Browse people, tags, statuses and sweeps')
+
+  await browse.click()
+  await expect(field).toBeFocused()
+  await expect(popup(page)).toBeVisible()
+  const options = popup(page).getByRole('option')
+  await expect(options.first()).toHaveText(/Forgotten\s*0$/)
+  await expect(popup(page)).toContainText(/^Sweeps.*People.*Tags.*Status/)
+  await shot(page, 'rf-sweeps')
+  // A second press closes it; the field keeps the focus.
+  await browse.click()
+  await expect(popup(page)).toHaveCount(0)
+  await expect(field).toBeFocused()
+
+  // Needs attention: its filter in the field's words, its tasks queued — the late due date and today's follow-up.
+  await browse.click()
+  await options.filter({ hasText: 'Needs attention' }).click()
+  await expect(field).toHaveValue('due soon or followup <= today ')
+  await expect(popup(page)).toHaveCount(0)
+  await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Onboarding checklist/])
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('2 left · 0 followed up')
+})
+
 test('no place in the queue: the large face says how many are followed up; once every task has a mark, all reviewed', async ({ page }) => {
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
   await expect(w.locator('[data-review-queue-button]')).toHaveCount(0)
   const top = w.locator('[data-widget-top-line]')
-  await expect(top.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(top.getByTestId('review-widget-progress')).toHaveText('4 left · 0 followed up')
   await expect(top).not.toHaveText(/[0-9]+ of [0-9]+/)
   for (let i = 0; i < 4; i++) await w.getByRole('button', { name: /^Skip/ }).click()
   await expect(top.getByTestId('review-widget-progress')).toHaveText('All 4 reviewed · 0 followed up')
@@ -316,7 +356,7 @@ test('in a cell of several widgets: no top line — the field’s row comes firs
   await expect(w.locator('[data-widget-top-line]')).toHaveCount(0)
   await pickInReview(page, 'rt', 'Aisha')
   const row = w.locator('[data-prompt-row]')
-  await expect(row.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(row.getByTestId('review-widget-progress')).toHaveText('4 left · 0 followed up')
   const rowBox = await row.boundingBox()
   const hostBox = await w.boundingBox()
   const progressBox = await row.getByTestId('review-widget-progress').boundingBox()
@@ -497,7 +537,7 @@ test('faces by size: medium — the card’s essentials; small — the filter an
   await expect(med).toHaveAttribute('data-review-face', 'medium')
   await pickInReview(page, 'rm', 'Aisha')
   await expect(med.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
-  await expect(med.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(med.getByTestId('review-widget-progress')).toHaveText('4 left · 0 followed up')
   await expect(med.getByTestId('review-facts')).toContainText('Waiting')
   await expect(med.locator('[data-review-row]')).toHaveCount(0)
   await shot(page, 'review-widget-medium', wsCell(page, 'med'))
@@ -522,7 +562,7 @@ test('faces by size: medium — the card’s essentials; small — the filter an
   await expect(field).toHaveValue('@Aisha or @Ben ')
   await expect(popover).toBeVisible()
   // Wide in the popup: the queue beside the card, no Queue button.
-  await expect(whole.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(whole.getByTestId('review-widget-progress')).toHaveText('5 left · 0 followed up')
   // Leaving the field, then Esc closes the popup.
   await field.blur()
   await page.keyboard.press('Escape')

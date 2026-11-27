@@ -48,12 +48,7 @@ export async function jumpToReview(filter: ReviewFilter | null): Promise<boolean
   jumping = true
   try {
     const target = reviewWidgetTarget()
-    if (!target) {
-      if (!(await openReviewPopup(filter))) return false
-      closeCovers()
-      focusReviewWidget(REVIEW_POPUP_TAB_ID)
-      return true
-    }
+    if (!target) return await showPopupReview(filter)
     const tabId = target.tabId
     if (editorsHoldChanges() && (hidesAnotherTab(tabId) || closesPopup(tabId)) && !(await leaveOpenEditors())) return false
     closeCovers()
@@ -65,6 +60,31 @@ export async function jumpToReview(filter: ReviewFilter | null): Promise<boolean
   } finally {
     jumping = false
   }
+}
+
+/**
+ * Shows `filter` in the popup review, whatever the open layout holds: the
+ * Neglect map's Review buttons, which always review there (a layout's
+ * Review widget keeps what it was reviewing). As `jumpToReview`'s popup
+ * branch: an editor with changes asks first, the covers close, the focus
+ * moves in. Resolves whether it was shown.
+ */
+export async function jumpToPopupReview(filter: ReviewFilter | null): Promise<boolean> {
+  if (jumping) return false
+  jumping = true
+  try {
+    return await showPopupReview(filter)
+  } finally {
+    jumping = false
+  }
+}
+
+/** The popup review opened with `filter`, the covers closed and the focus in it; false on Keep editing. */
+async function showPopupReview(filter: ReviewFilter | null): Promise<boolean> {
+  if (!(await openReviewPopup(filter))) return false
+  closeCovers()
+  focusReviewWidget(REVIEW_POPUP_TAB_ID)
+  return true
 }
 
 /** The task dialog and the filtered-tasks panel close: they would cover the widget. */

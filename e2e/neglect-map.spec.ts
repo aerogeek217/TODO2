@@ -3,14 +3,16 @@ import { box } from './fixtures/geometry'
 import { expectLayoutStep, seedWorkspace, wsCell, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
- * The Neglect map widget (D25 board H) in a real browser: a task due soon
- * or late and untouched for the threshold lands in the shaded Slipping
- * corner and the Slipping list; a dot opens the editor; a drag on empty
- * plot lassoes dots into the bulk bar; the screen filter narrows the dots;
- * the tab menu's Colour by and Untouched after change what it shows.
+ * The Neglect map widget (D25 board H) in a real browser: a task due or to
+ * follow up soon or late and stale (Settings' Stale after, 14 days here)
+ * lands in the shaded Slipping corner and the Slipping list; a dot opens
+ * the editor; a drag on empty plot lassoes dots into the bulk bar; the
+ * screen filter narrows the dots; the tab menu's Color by changes what it
+ * shows.
  */
 
 const NEGLECT_SEED: WorkspaceSeed = {
+  settings: { staleAfterDays: '14' },
   tags: [{ name: 'Project: Alpha', color: '#e0a458' }, { name: 'Project: Beta', color: '#6c9ef8' }, 'home'],
   tasks: [
     { title: 'Ship the quarterly report', dueInDays: -4, modifiedInDays: -26, tags: ['Project: Alpha'], urgent: true },
@@ -33,8 +35,8 @@ const NEGLECT_SEED: WorkspaceSeed = {
   }],
 }
 
-/** Latest first: 10, 4 days late; due in 1, 2 days. */
-const SLIPPING = ['Clean up the backlog', 'Ship the quarterly report', 'Call the auditor', 'Renew the vendor contract']
+/** Latest first: 10, 4 days late; its follow-up 2 days late; due in 1 day. */
+const SLIPPING = ['Clean up the backlog', 'Ship the quarterly report', 'Renew the vendor contract', 'Call the auditor']
 
 const map = (page: Page) => wsCell(page, 'k1').locator('[data-neglect-map]')
 const dots = (page: Page, zone?: string) => map(page).locator(zone ? `[data-neglect-dot="${zone}"]` : '[data-neglect-dot]')
@@ -54,13 +56,15 @@ test.beforeEach(async ({ page }) => {
   await expect(map(page)).toBeVisible()
 })
 
-test('a task due soon or late and untouched for 14 days lands in the Slipping corner and list', async ({ page }) => {
+test('a task due or to follow up soon or late and stale lands in the Slipping corner and list', async ({ page }) => {
   await expect(dots(page)).toHaveCount(12)
   await expect(dots(page, 'slipping')).toHaveCount(4)
   // The list: latest first, numbered, the dots badged to match.
   const rows = slippingList(page).getByRole('listitem')
   await expect(rows).toHaveText(SLIPPING.map((t, i) => new RegExp(`^${i + 1}${t}`)))
   await expect(rows.nth(1)).toContainText('4d late · 26d untouched')
+  // Placed by its follow-up, two days late, not its due date in two days: the row names it.
+  await expect(rows.nth(2)).toContainText('follow-up 2d late · 30d untouched')
   await expect(dot(page, 'Ship the quarterly report')).toHaveText('2')
   // Every Slipping dot sits in the shaded corner; no other dot does.
   const corner = await box(map(page).getByTestId('neglect-slipping-corner'))
@@ -78,7 +82,7 @@ test('a task due soon or late and untouched for 14 days lands in the Slipping co
   await expect(dot(page, 'Renew the vendor contract')).toHaveCSS('background-color', 'rgb(108, 158, 248)')
   expect((await box(ship)).width).toBeGreaterThan((await box(dot(page, 'Call the auditor'))).width)
   await expect(dot(page, 'Renew the vendor contract')).toHaveAttribute('data-followup-late', 'true')
-  // No due date: the strip, Forgotten once untouched for the threshold.
+  // No dates: the strip, Forgotten once stale.
   await expect(map(page).getByTestId('neglect-forgotten')).toHaveText('Forgotten · 1')
   await expect(dot(page, 'Archive old tickets')).toHaveAttribute('data-neglect-dot', 'forgotten')
 })
@@ -205,7 +209,7 @@ test('a zone’s word opens its tasks as a list; under 900px the widget has no S
   if (process.env.NEGLECT_SHOTS) await map(page).screenshot({ path: `${process.env.NEGLECT_SHOTS}/neglect-no-list.png` })
 })
 
-test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
+test('the ⋯ menu sets Color by; untouched is Settings’ Stale after, not the map’s', async ({ page }) => {
   // Alone in its cell, widget names off (the default): no name line; the cell's own ⋯ opens its menu.
   await expect(wsCell(page, 'k1').getByTestId('top-line-name')).toHaveCount(0)
   // Floating, its controls take a press once the pointer is over the cell.
@@ -219,17 +223,47 @@ test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
   await page.getByRole('menuitemcheckbox', { name: 'home' }).click()
   await expect(dot(page, 'Update the wiki')).toHaveAttribute('data-coloured', 'true')
   await expect(dot(page, 'Ship the quarterly report')).not.toHaveAttribute('data-coloured', 'true')
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
-
-  await wsCell(page, 'k1').hover({ position: { x: 40, y: 40 } })
-  await wsCell(page, 'k1').getByRole('button', { name: 'Cell options' }).click()
-  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Untouched after/ }).click()
-  await page.getByRole('menuitemradio', { name: '30 days' }).click()
-  await expect(dots(page, 'slipping')).toHaveCount(2)
-  await expect(slippingList(page).getByRole('listitem')).toHaveText([/Clean up the backlog/, /Renew the vendor contract/])
   // Layout config: saved at once, an undo step.
   await expectLayoutStep(page, 'Changed “Neglect map”')
+  await page.keyboard.press('Escape')
+  await expect(menu.getByRole('menuitem', { name: /^Untouched after/ })).toHaveCount(0)
+})
+
+test('the axes’ `+3d` gives way in a short plot, so no two marks crowd each other', async ({ page }) => {
+  const yMarks = map(page).locator('[class*="yMark"]')
+  /** The y marks shown, top to bottom, and the least space between two neighbours' labels. */
+  const read = () => yMarks.evaluateAll((els) => {
+    const boxes = els.map((e) => ({ text: e.textContent ?? '', ...JSON.parse(JSON.stringify(e.getBoundingClientRect())) as { top: number; bottom: number } }))
+      .sort((a, b) => a.top - b.top)
+    let least = Infinity
+    for (let i = 1; i < boxes.length; i++) least = Math.min(least, (boxes[i]?.top ?? 0) - (boxes[i - 1]?.bottom ?? 0))
+    return { texts: boxes.map((b) => b.text), least }
+  })
+  // Tall: room for the due-soon line's mark beside Today.
+  await expect.poll(async () => (await read()).texts).toEqual(['14d late', 'Today', '+3d', '+30d'])
+  // Short: `+3d` would crowd Today, so it goes; the others stay apart.
+  await page.setViewportSize({ width: 1440, height: 340 })
+  await expect.poll(async () => (await read()).texts).toEqual(['14d late', 'Today', '+30d'])
+  expect((await read()).least).toBeGreaterThanOrEqual(4)
+  // The x axis's marks stay apart too.
+  const xGaps = await map(page).locator('[class*="xMark"]').evaluateAll((els) => {
+    const boxes = els.map((e) => e.getBoundingClientRect()).sort((a, b) => a.left - b.left)
+    return boxes.slice(1).map((b, i) => b.left - (boxes[i]?.right ?? 0))
+  })
+  for (const gap of xGaps) expect(gap).toBeGreaterThanOrEqual(4)
+})
+
+test('the list’s switch shows Forgotten: the longest untouched first, a yellow dot, no numbers on the plot', async ({ page }) => {
+  const switcher = map(page).getByRole('group', { name: 'List' })
+  await expect(switcher.getByRole('button', { name: /^Slipping/ })).toHaveAttribute('aria-pressed', 'true')
+  await switcher.getByRole('button', { name: /^Forgotten/ }).click()
+  const forgotten = map(page).getByRole('region', { name: 'Forgotten' })
+  await expect(forgotten.getByRole('listitem')).toHaveText([/Archive old tickets/])
+  await expect(forgotten.getByRole('listitem').first()).toContainText('no dates · 50d untouched')
+  await expect(dot(page, 'Ship the quarterly report')).toHaveText('')
+  await switcher.getByRole('button', { name: /^Slipping/ }).click()
+  await expect(slippingList(page).getByRole('listitem')).toHaveCount(4)
+  await expect(dot(page, 'Ship the quarterly report')).toHaveText('2')
 })
 
 test.describe('phone', () => {

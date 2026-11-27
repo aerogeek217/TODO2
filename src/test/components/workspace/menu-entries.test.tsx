@@ -5,6 +5,7 @@ import { useNeglectMenuEntries } from '../../../components/workspace/neglect/neg
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import type { Tag } from '../../../models'
 import type { NeglectTab } from '../../../models/workspace-layout'
+import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 
@@ -15,7 +16,7 @@ const item = (entries: readonly MenuEntry[] | undefined, label: string) =>
   (entries ?? []).find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
 
 const neglectTab = (config: Partial<NeglectTab['config']>): NeglectTab =>
-  ({ id: 'map', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 14, ...config } })
+  ({ id: 'map', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, ...config } })
 
 describe('the shared tag picks', () => {
   it('a checkbox per tag in the tags’ order; a tick adds at the end or takes out', () => {
@@ -48,7 +49,7 @@ describe('the Neglect map’s tag-pick submenu', () => {
     expect(item(colourBy.children, 'Project: Beta').checked).toBe(true)
   })
 
-  it('the Neglect map: its tag ticks colour by tags; Untouched after is a setting submenu', () => {
+  it('the Neglect map: its tag ticks colour by tags; it has no threshold of its own', () => {
     const patchTabConfig = vi.fn()
     useWorkspaceStore.setState({ patchTabConfig })
     useTagStore.setState({ tags: [ATLAS, BETA] })
@@ -66,12 +67,31 @@ describe('the Neglect map’s tag-pick submenu', () => {
     expect(item(colourBy.children, 'Project: Atlas').checked).toBe(false)
     item(colourBy.children, 'Project: Beta').onSelect!()
     expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { colourBy: { kind: 'tags', tagIds: [2] } })
-    const untouched = item(result.current, 'Untouched after')
-    expect(untouched.note).toBe('14 days')
-    expect(untouched.childrenWidth).toBe(200)
-    item(untouched.children, '14 days').onSelect!()
-    expect(patchTabConfig).toHaveBeenCalledTimes(1)
-    item(untouched.children, '30 days').onSelect!()
-    expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { untouchedDays: 30 })
+    // Untouched is Settings' Stale after: no menu item of its own.
+    expect(item(result.current, 'Untouched after')).toBeUndefined()
+  })
+
+  it('the Neglect map’s Hide statuses: a checkbox per status, ticked = hidden; its value names them', () => {
+    const patchTabConfig = vi.fn()
+    useWorkspaceStore.setState({ patchTabConfig })
+    useStatusStore.setState({ statuses: [
+      { id: 1, name: 'Waiting', color: '#a070e0', sortOrder: 1 },
+      { id: 4, name: 'Parked', color: '#8a8a8a', sortOrder: 2 },
+    ] })
+    const { result, rerender } = renderHook(({ tab }) => useNeglectMenuEntries(tab), { initialProps: { tab: neglectTab({}) } })
+    const hide = item(result.current, 'Hide statuses')
+    expect(hide.note).toBe('None')
+    expect(hide.childrenWidth).toBe(232)
+    expect(item(hide.children, 'Parked').checked).toBe(false)
+    expect(item(hide.children, 'Parked').keepOpen).toBe(true)
+    expect((hide.children ?? []).some((e) => e.kind === 'note' && e.text === 'Tasks with a hidden status leave the map, its counts and its Review.')).toBe(true)
+    item(hide.children, 'Parked').onSelect!()
+    expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { hiddenStatusIds: [4] })
+    // A deleted status's id hides nothing and isn't named.
+    rerender({ tab: neglectTab({ hiddenStatusIds: [4, 1, 99] }) })
+    const hidden = item(result.current, 'Hide statuses')
+    expect(hidden.note).toBe('Waiting, Parked')
+    item(hidden.children, 'Waiting').onSelect!()
+    expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { hiddenStatusIds: [4, 99] })
   })
 })

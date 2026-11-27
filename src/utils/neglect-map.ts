@@ -2,26 +2,33 @@ import type { NeglectColourBy } from '../models/workspace-layout'
 import type { TodoItem } from '../models/todo-item'
 import { daysUntil } from './effective-date'
 import { daysSinceModified } from './stale'
-import type { UrgentDueWithinDays } from './urgency'
+import { isDueNear, type UrgentDueWithinDays } from './urgency'
 
 /**
  * The Neglect map (D25 board H): every open task placed by how long it has
- * gone untouched (x: days since `modifiedAt`) and how soon it is due (y:
- * days until its due date; late is up). Two lines cut the plot in four —
- * the untouched threshold (the tab's `untouchedDays`) and the due-soon line
- * (Settings' "Due date makes a task urgent" range):
+ * gone untouched (x: days since `modifiedAt`) and how soon it needs you (y:
+ * days until the earlier of its due date and its next follow-up; late is
+ * up). Two lines cut the plot in four — Settings' Stale after (the filter
+ * word `stale`) and the due-soon line (Settings' "Due date makes a task
+ * urgent" range, the filter words `due soon` / `followup soon`):
  *
- * - **Slipping** (top right): due soon or late, untouched for the threshold.
- * - **In hand** (top left): due soon or late, touched recently.
- * - **Planned** (bottom left): due later, touched recently.
- * - **Drifting** (bottom right): due later, untouched.
+ * - **Slipping** (top right): due or to follow up soon or late, stale.
+ * - **In hand** (top left): soon or late, touched recently.
+ * - **Later** (bottom left): later, touched recently.
+ * - **Drifting** (bottom right): later, stale.
  *
- * A task without a due date goes in the strip under the plot: **Forgotten**
- * when untouched for the threshold, else just no due date.
+ * A task with neither date goes in the strip under the plot: **Forgotten**
+ * when stale, else just no dates. A task whose only date is a planned day
+ * is left off the map (the Planner holds it), as is a task with a status
+ * the tab hides. With Stale after off (0) nothing is stale, so nothing is
+ * Slipping, Drifting or Forgotten.
  */
 
 /** Where a task lands on the map. */
-export type NeglectZone = 'slipping' | 'inHand' | 'planned' | 'drifting' | 'forgotten' | 'noDue'
+export type NeglectZone = 'slipping' | 'inHand' | 'later' | 'drifting' | 'forgotten' | 'noDates'
+
+/** Which date placed a task down the plot: its due date, its next follow-up, or neither (the strip). */
+type NeglectDateBy = 'due' | 'followup' | null
 
 /** The x axis ends here: a task untouched longer sits on the cap (`60+`). */
 export const NEGLECT_X_CAP = 60
@@ -36,14 +43,16 @@ export const NEGLECT_JITTER = 0.45
 const PROJECT_TAG_PREFIX = 'Project:'
 
 /** The task fields the map reads. */
-export type NeglectFields = Pick<TodoItem, 'modifiedAt' | 'dueDate' | 'isCompleted'> & { id: number }
+export type NeglectFields = Pick<TodoItem, 'modifiedAt' | 'dueDate' | 'nextFollowupAt' | 'doDate' | 'isCompleted' | 'statusId'> & { id: number }
 
 interface NeglectOptions {
   today: Date
-  /** The tab's threshold: untouched this many days or more counts. */
-  untouchedDays: number
-  /** Settings' due-soon range (`urgentDueWithinDays`); `null` = only a late task is near. */
+  /** Settings' Stale after: untouched this many days or more is stale (`0`: off, nothing is). */
+  staleAfterDays: number
+  /** Settings' due-soon range (`urgentDueWithinDays`); `null` = only a late date is near. */
   dueSoonDays: UrgentDueWithinDays
+  /** The tab's hidden statuses (`NeglectTabConfig.hiddenStatusIds`): a task with one is left off. */
+  hiddenStatusIds?: readonly number[]
 }
 
 /** One task on the map. */
@@ -51,23 +60,30 @@ export interface NeglectPoint<T extends NeglectFields = NeglectFields> {
   todo: T
   /** Days since the task last changed (0 or more; not capped). */
   untouched: number
-  /** Days until the due date (negative = late; not clamped); `null` = no due date. */
-  dueIn: number | null
+  /**
+   * Days until the earlier of its due date and next follow-up (negative =
+   * late; not clamped); `null` = neither (the strip).
+   */
+  dateIn: number | null
+  /** Which date `dateIn` is (the due date on a tie). */
+  dateBy: NeglectDateBy
   zone: NeglectZone
   /** Where it is drawn across: 0 – `NEGLECT_X_CAP`, jitter included. */
   x: number
   /**
    * Where it is drawn down: `NEGLECT_Y_MIN` – `NEGLECT_Y_MAX` on the plot;
-   * for a task without a due date, its place in the strip, 0 (top) – 1.
+   * for a task with neither date, its place in the strip, 0 (top) – 1.
    */
   y: number
 }
 
 export interface NeglectMap<T extends NeglectFields = NeglectFields> {
-  /** Every open task, in the order given. */
+  /** Every open task placed, in the order given. */
   points: NeglectPoint<T>[]
   /** The Slipping tasks, latest first, then the longest untouched. */
   slipping: NeglectPoint<T>[]
+  /** The Forgotten tasks, the longest untouched first. */
+  forgotten: NeglectPoint<T>[]
   /** Tasks per zone. */
   counts: Record<NeglectZone, number>
 }
@@ -77,17 +93,26 @@ export function projectTagIds(tags: ReadonlyArray<{ id?: number; name: string }>
   return tags.flatMap((t) => (t.id != null && t.name.trim().startsWith(PROJECT_TAG_PREFIX) ? [t.id] : []))
 }
 
-/** Whether a task due in `dueIn` days is near: late, or within the due-soon range. */
-export function isDueNear(dueIn: number, dueSoonDays: UrgentDueWithinDays): boolean {
-  return dueIn < 0 || (dueSoonDays != null && dueIn <= dueSoonDays)
+/** Whether Stale after draws a line on the plot: on, and short of the 60-day cap. */
+export function staleLineShown(staleAfterDays: number): boolean {
+  return staleAfterDays > 0 && staleAfterDays < NEGLECT_X_CAP
 }
 
-/** The zone of a task untouched `untouched` days and due in `dueIn` days (`null` = no due date). */
-export function neglectZone(untouched: number, dueIn: number | null, opts: Pick<NeglectOptions, 'untouchedDays' | 'dueSoonDays'>): NeglectZone {
-  const neglected = untouched >= opts.untouchedDays
-  if (dueIn == null) return neglected ? 'forgotten' : 'noDue'
-  if (isDueNear(dueIn, opts.dueSoonDays)) return neglected ? 'slipping' : 'inHand'
-  return neglected ? 'drifting' : 'planned'
+/** The zone of a task untouched `untouched` days whose date is `dateIn` days away (`null` = neither date). */
+export function neglectZone(untouched: number, dateIn: number | null, opts: Pick<NeglectOptions, 'staleAfterDays' | 'dueSoonDays'>): NeglectZone {
+  const stale = opts.staleAfterDays > 0 && untouched >= opts.staleAfterDays
+  if (dateIn == null) return stale ? 'forgotten' : 'noDates'
+  if (isDueNear(dateIn, opts.dueSoonDays)) return stale ? 'slipping' : 'inHand'
+  return stale ? 'drifting' : 'later'
+}
+
+/** The date that places `todo` down the plot: the earlier of due and next follow-up (the due date on a tie). */
+function placingDate(todo: NeglectFields, today: Date): { dateIn: number | null; dateBy: NeglectDateBy } {
+  const due = daysUntil(todo.dueDate, today)
+  const followup = daysUntil(todo.nextFollowupAt, today)
+  if (due == null && followup == null) return { dateIn: null, dateBy: null }
+  if (followup == null || (due != null && due <= followup)) return { dateIn: due, dateBy: 'due' }
+  return { dateIn: followup, dateBy: 'followup' }
 }
 
 /** A number in [-1, 1) fixed by `id` and `salt` (the same every time: no `Math.random`). */
@@ -127,38 +152,43 @@ function ySide(y: number, dueSoonDays: UrgentDueWithinDays): NudgeSide {
   return floor ? 'up' : ceiling ? 'down' : 'either'
 }
 
-const ZONES: readonly NeglectZone[] = ['slipping', 'inHand', 'planned', 'drifting', 'forgotten', 'noDue']
+const ZONES: readonly NeglectZone[] = ['slipping', 'inHand', 'later', 'drifting', 'forgotten', 'noDates']
 
 /**
- * The map of `todos` (completed tasks left out). A dot sitting on another's
- * spot (same capped x and clamped y, or the same x in the strip) is moved a
- * little, by its id — never across a line it sits on (the threshold, the
- * due-soon line, today) or off the plot.
+ * The map of `todos` (completed tasks, tasks whose only date is a planned
+ * day and tasks with a hidden status left out). A dot sitting on another's spot (same capped x
+ * and clamped y, or the same x in the strip) is moved a little, by its id —
+ * never across a line it sits on (Stale after, the due-soon line, today) or
+ * off the plot.
  */
 export function buildNeglectMap<T extends NeglectFields>(todos: readonly T[], opts: NeglectOptions): NeglectMap<T> {
   const counts = Object.fromEntries(ZONES.map((z) => [z, 0])) as Record<NeglectZone, number>
   const points: NeglectPoint<T>[] = []
+  const hidden = new Set(opts.hiddenStatusIds ?? [])
   for (const todo of todos) {
     if (todo.isCompleted) continue
+    if (todo.statusId != null && hidden.has(todo.statusId)) continue
+    const { dateIn, dateBy } = placingDate(todo, opts.today)
+    // Only a planned day: the Planner holds it.
+    if (dateIn == null && todo.doDate) continue
     const untouched = Math.max(0, daysSinceModified(todo, opts.today) ?? 0)
-    const dueIn = daysUntil(todo.dueDate, opts.today)
-    const zone = neglectZone(untouched, dueIn, opts)
+    const zone = neglectZone(untouched, dateIn, opts)
     counts[zone]++
     const x = Math.min(NEGLECT_X_CAP, untouched)
-    const y = dueIn == null ? 0.5 : Math.max(NEGLECT_Y_MIN, Math.min(NEGLECT_Y_MAX, dueIn))
-    points.push({ todo, untouched, dueIn, zone, x, y })
+    const y = dateIn == null ? 0.5 : Math.max(NEGLECT_Y_MIN, Math.min(NEGLECT_Y_MAX, dateIn))
+    points.push({ todo, untouched, dateIn, dateBy, zone, x, y })
   }
 
   // Dots on one spot: spread them by id.
   const spots = new Map<string, number>()
-  const spotOf = (p: NeglectPoint<T>) => `${p.dueIn == null ? 'strip' : p.y}|${p.x}`
+  const spotOf = (p: NeglectPoint<T>) => `${p.dateIn == null ? 'strip' : p.y}|${p.x}`
   for (const p of points) spots.set(spotOf(p), (spots.get(spotOf(p)) ?? 0) + 1)
   for (const p of points) {
     if ((spots.get(spotOf(p)) ?? 0) < 2) continue
     const id = p.todo.id
-    const xSide: NudgeSide = p.x === 0 || p.x === opts.untouchedDays ? 'up' : p.x === NEGLECT_X_CAP ? 'down' : 'either'
+    const xSide: NudgeSide = p.x === 0 || p.x === opts.staleAfterDays ? 'up' : p.x === NEGLECT_X_CAP ? 'down' : 'either'
     p.x = Math.min(NEGLECT_X_CAP, Math.max(0, nudge(p.x, neglectJitter(id, 1), xSide)))
-    if (p.dueIn == null) {
+    if (p.dateIn == null) {
       // The strip: anywhere across its middle 80 %.
       p.y = 0.5 + neglectJitter(id, 2) * 0.4
     } else {
@@ -168,15 +198,26 @@ export function buildNeglectMap<T extends NeglectFields>(todos: readonly T[], op
 
   const slipping = points
     .filter((p) => p.zone === 'slipping')
-    .sort((a, b) => (a.dueIn ?? 0) - (b.dueIn ?? 0) || b.untouched - a.untouched || a.todo.id - b.todo.id)
-  return { points, slipping, counts }
+    .sort((a, b) => (a.dateIn ?? 0) - (b.dateIn ?? 0) || b.untouched - a.untouched || a.todo.id - b.todo.id)
+  const forgotten = points
+    .filter((p) => p.zone === 'forgotten')
+    .sort((a, b) => b.untouched - a.untouched || a.todo.id - b.todo.id)
+  return { points, slipping, forgotten, counts }
 }
 
-/** `4d late` / `due today` / `due in 3d` / `no due date`. */
-export function dueInText(dueIn: number | null): string {
-  if (dueIn == null) return 'no due date'
-  if (dueIn < 0) return `${-dueIn}d late`
-  return dueIn === 0 ? 'due today' : `due in ${dueIn}d`
+/**
+ * What placed a task, in words: `4d late` / `due today` / `due in 3d` by its
+ * due date, `follow-up 4d late` / `follow-up today` / `follow-up in 3d` by
+ * its next follow-up, `no dates` in the strip.
+ */
+export function dateInText(dateIn: number | null, by: NeglectDateBy): string {
+  if (dateIn == null || by == null) return 'no dates'
+  if (by === 'followup') {
+    if (dateIn < 0) return `follow-up ${-dateIn}d late`
+    return dateIn === 0 ? 'follow-up today' : `follow-up in ${dateIn}d`
+  }
+  if (dateIn < 0) return `${-dateIn}d late`
+  return dateIn === 0 ? 'due today' : `due in ${dateIn}d`
 }
 
 /** `26d untouched` (`touched today` for 0). */

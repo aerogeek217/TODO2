@@ -9,6 +9,7 @@ import {
   type AutocompleteView,
 } from './nlp-autocomplete'
 import { NAME_MATCH_RANK, rankByName } from './nlp-resolver'
+import { REVIEW_SWEEPS, type ReviewSweepId } from './review'
 
 /**
  * The Review widget's filter field (widget feedback 2A, board Review-field):
@@ -19,7 +20,8 @@ import { NAME_MATCH_RANK, rankByName } from './nlp-resolver'
  *
  * - **browse** — the field clicked where a term may go (empty, after an
  *   operator, or after a whole term): every person, tag and status under its
- *   heading, the most counted first;
+ *   heading, the most counted first; in an empty field the sweeps first
+ *   (`REVIEW_SWEEPS`), each a whole filter;
  * - **bare letters** — a name typed without `@ # !` where a term may go:
  *   the people, tags and statuses it matches (exact, initials, prefix, word
  *   start), best first.
@@ -30,11 +32,12 @@ import { NAME_MATCH_RANK, rankByName } from './nlp-resolver'
  * `(@Aisha or @Ben) and #q4`. It is text, so the user may change the words.
  */
 
-/** Each person's, tag's and status's open tasks (under the widget's screen filter), by id. */
+/** Each person's, tag's and status's open tasks (under the widget's screen filter), by id; and each sweep's. */
 export interface ReviewFieldCounts {
   person: ReadonlyMap<number, number>
   tag: ReadonlyMap<number, number>
   status: ReadonlyMap<number, number>
+  sweep?: ReadonlyMap<ReviewSweepId, number>
 }
 
 interface ReviewFieldOptions {
@@ -62,14 +65,23 @@ const LAST_TOKEN = /(?:[@#!]"(?:[^"\\]|\\.)*"?|[^\s()]+)$/
 const BARE_NAME = /^\p{L}[\p{L}\p{M}\p{N}_'&.-]*$/u
 const MAX_ROWS = 8
 
+/**
+ * How much of the text's end `beforeOf` reads tokens from. `LAST_TOKEN` and
+ * the trim of `[\s)]` runs retry from every position, so on the whole text
+ * they are quadratic (`'a'.repeat(50000) + ')'` took seconds); the last token
+ * typed is always within this tail.
+ */
+const TOKEN_TAIL = 1000
+
 /** What stands before `head` (the text before a term's place). */
 function beforeOf(head: string, reads: (text: string) => boolean): Before {
   const trimmed = head.trimEnd()
   if (trimmed === '' || trimmed.endsWith('(')) return { kind: 'open' }
-  const last = LAST_TOKEN.exec(trimmed)?.[0] ?? ''
+  const tail = trimmed.slice(-TOKEN_TAIL)
+  const last = LAST_TOKEN.exec(tail)?.[0] ?? ''
   if (OPERATORS.has(last.toLowerCase())) return { kind: 'open' }
   // A name, or a group closed after one: whole terms, whatever is around them.
-  const inner = trimmed.replace(/[\s)]+$/, '')
+  const inner = tail.replace(/[\s)]+$/, '')
   const name = LAST_TOKEN.exec(inner)?.[0] ?? ''
   const sort = SIGIL_SORT[name.charAt(0)]
   if (sort && name.length > 1) return { kind: 'term', sort }
@@ -94,14 +106,34 @@ function operatorPrefix(word: string): boolean {
 
 const countOf = (counts: ReviewFieldCounts, item: AutocompleteItem) => counts[item.kind].get(item.id) ?? 0
 
-/** Every person, tag and status under its heading, the most counted first (ties in their own order). */
-function browseRows(sources: AutocompleteSources, counts: ReviewFieldCounts): AutocompleteRow[] {
+/** The sweeps' icon colors: the Neglect map's zones. */
+const SWEEP_TONE: Partial<Record<ReviewSweepId, 'deadline' | 'followup'>> = { slipping: 'deadline', forgotten: 'followup' }
+
+/** The sweeps under their heading, in their own order, each with its open tasks. */
+function sweepRows(counts: ReviewFieldCounts): AutocompleteRow[] {
+  return REVIEW_SWEEPS.map((s) => {
+    const tone = SWEEP_TONE[s.id]
+    return { kind: 'sweep', id: s.id, label: s.label, count: counts.sweep?.get(s.id) ?? 0, section: 'Sweeps', ...(tone ? { tone } : {}) }
+  })
+}
+
+/**
+ * Every person, tag and status under its heading, the most counted first
+ * (ties in their own order); with `sweeps` (the field is empty), the sweeps
+ * above them.
+ */
+function browseRows(sources: AutocompleteSources, counts: ReviewFieldCounts, sweeps: boolean): AutocompleteRow[] {
   const section = (items: readonly AutocompleteItem[], heading: string): AutocompleteRow[] => items
     .map((item, i) => ({ item, i, count: countOf(counts, item) }))
     .sort((a, b) => b.count - a.count || a.i - b.i)
     .map(({ item, count }) => ({ kind: 'entity', item, resolves: false, count, section: heading }))
   const people = [...sources.people].sort((a, b) => a.name.localeCompare(b.name))
-  return [...section(people, 'People'), ...section(sources.tags, 'Tags'), ...section(sources.statuses, 'Status')]
+  return [
+    ...(sweeps ? sweepRows(counts) : []),
+    ...section(people, 'People'),
+    ...section(sources.tags, 'Tags'),
+    ...section(sources.statuses, 'Status'),
+  ]
 }
 
 /** The people, tags and statuses a bare `word` matches (not only inside a word), best first. */
@@ -123,7 +155,8 @@ function bareRows(word: string, sources: AutocompleteSources, counts: ReviewFiel
 /**
  * The field's popup for `value` with the cursor at `cursor`: the expression
  * field's after `@ # ! /` (its names with their counts), else a bare name's
- * matches, else — `browse` — the whole list at an empty place for a term.
+ * matches, else — `browse` — the whole list at an empty place for a term
+ * (the sweeps first while the whole field is empty).
  * Null when nothing is to be listed (a word that is an operator or a keyword,
  * a date being typed, the cursor inside a word).
  */
@@ -146,7 +179,7 @@ export function reviewFieldAutocomplete(
   const base = { trigger: null, mode: 'entity' as const, mixed: true, header: '', footer: false, anchor: at.from, from: at.from, to: cursor, query: at.word }
   if (at.word === '') {
     if (!browse) return null
-    const rows = browseRows(sources, counts)
+    const rows = browseRows(sources, counts, value.trim() === '')
     return rows.length > 0 ? { ...base, rows } : null
   }
   if (!BARE_NAME.test(at.word) || EXPRESSION_KEYWORDS.has(at.word.toLowerCase())) return null

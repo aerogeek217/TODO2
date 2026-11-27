@@ -12,6 +12,11 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 - Text that can't be stored holds the close once, saying so; closing again drops it. A filter expression that doesn't read does so too, on the first press outside its field (`ExpressionField`).
 - Filter and picker popovers ([Filters](filters.md)) write on every change. A date panel's pending Is not, which no clause can hold yet, is kept per filter (`filters/date-pending-not`).
 
+## A dialog's backdrop
+
+- A press that starts and ends on the backdrop closes the dialog (`shared/use-backdrop-press`, every modal and Quick Add's scrim). A text drag let go over it closes nothing.
+- Nor does a double-click's second press (`detail >= 2`): a Planner row opens its task on one click, and the second press lands on the new backdrop. That press selects no text and leaves the focus in the dialog.
+
 ## Editors that hold a copy
 
 - Edit list ([Lists](lists.md)) and the widget editors, a Number's, a chart's, Created vs completed's ([Glance widgets](glance-widgets.md)) and the Planner settings ([Planner widget](planner-widget.md#the-unplanned-filters-editor)), hold a copy until their Save. Save writes it for good as one undo step.

@@ -28,11 +28,12 @@ afterEach(() => {
 const shortcuts = { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn(), openShortcutsModal: vi.fn() }
 
 describe('AppCommandPalette', () => {
-  it('a palette opened before the tasks load gains Review With › as they arrive; no Email Check-in ›', () => {
+  it('a palette opened before the tasks load gains Review With › as they arrive; no Email Check-in ›', async () => {
     const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
     useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
     render(<AppCommandPalette onClose={vi.fn()} shortcuts={shortcuts} />)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'review ada' } })
+    // The palette is lazy: its chunk lands first.
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'review ada' } })
     expect(screen.queryByRole('option', { name: /Review With › Ada Lovelace/ })).toBeNull()
 
     const ada = makePerson({ id: 1, name: 'Ada Lovelace' })
@@ -46,7 +47,7 @@ describe('AppCommandPalette', () => {
     expect(screen.queryByRole('option', { name: /Email Check-in/ })).toBeNull()
   })
 
-  it('Show Tasks Matching the Filter: always offered, counts the tasks, opens the top bar’s filtered-tasks panel', () => {
+  it('Show Tasks Matching the Filter: always offered, counts the tasks, opens the top bar’s filtered-tasks panel', async () => {
     useTodoStore.setState({ todos: [
       makeTodo({ id: 1, title: 'Report' }),
       makeTodo({ id: 2, title: 'Review' }),
@@ -54,14 +55,14 @@ describe('AppCommandPalette', () => {
     ] })
     const onClose = vi.fn()
     const { unmount } = render(<AppCommandPalette onClose={onClose} shortcuts={shortcuts} />)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'matching the filter' } })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'matching the filter' } })
     // No filter on: every open task.
     expect(screen.getByRole('option', { name: /Show Tasks Matching the Filter/ })).toHaveTextContent('2 tasks')
     unmount()
 
     useFilterStore.getState().setSearchText('report')
     render(<AppCommandPalette onClose={onClose} shortcuts={shortcuts} />)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'matching the filter' } })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'matching the filter' } })
     const option = screen.getByRole('option', { name: /Show Tasks Matching the Filter/ })
     expect(option).toHaveTextContent('1 task')
     fireEvent.click(option)

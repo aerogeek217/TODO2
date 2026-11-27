@@ -290,9 +290,11 @@ test('narrow widgets: the dates show as icons, the tags column gives way, the su
   // The narrow column a quarter of the table: 281px (a whole px: the row's fit reads whole widths).
   await page.setViewportSize({ width: 1142, height: 800 })
   await seedWorkspace(page, {
+    // A person too: with no people track the tags would take the unused tracks' room instead of giving way.
+    people: ['Ann'],
     tags: ['home', 'work'],
     listDefinitions: [{ name: 'Mixed', predicate: { dates: { deadline: { match: 'set' } } } }],
-    tasks: [{ title: 'A fairly long task title that must stay readable', tags: ['home', 'work'], dueInDays: 2, followupInDays: 5 }],
+    tasks: [{ title: 'A fairly long task title that must stay readable', people: ['Ann'], tags: ['home', 'work'], dueInDays: 2, followupInDays: 5 }],
     layouts: [{
       name: 'Main',
       columns: [

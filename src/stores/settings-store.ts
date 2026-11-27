@@ -297,10 +297,14 @@ function applyColorOverrides(): void {
       root.style.removeProperty(varName)
     }
   }
+  // The accent as text follows an accent override as the theme draws a colour
+  // as text (the light theme's own is a fixed, darker teal).
   if (bag.includes('accent')) {
     root.style.setProperty('--color-accent-dim', dimColor(colors.accent))
+    root.style.setProperty('--color-accent-text', priorityTintText(resolvedTheme, colors.accent))
   } else {
     root.style.removeProperty('--color-accent-dim')
+    root.style.removeProperty('--color-accent-text')
   }
   // A priority's own colour tints its typed token too (`/urgent`); the
   // token's text is that colour as the theme draws a colour as text (the
@@ -893,12 +897,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
 /**
  * The settings filters are evaluated with (urgent range, week
- * start), as they are now. A memoized caller uses `useFilterSettings`
- * instead, so a settings change re-runs it.
+ * start, Stale after), as they are now. A memoized caller uses
+ * `useFilterSettings` instead, so a settings change re-runs it.
  */
 export function currentFilterSettings(): FilterSettings {
-  const { urgentDueWithinDays, weekStartsOn } = useSettingsStore.getState()
-  return { urgentRange: urgentDueWithinDays, weekStartsOn }
+  const { urgentDueWithinDays, weekStartsOn, staleAfterDays } = useSettingsStore.getState()
+  return { urgentRange: urgentDueWithinDays, weekStartsOn, staleAfterDays }
 }
 
 /** The two settings the automatic next follow-up is read from. */

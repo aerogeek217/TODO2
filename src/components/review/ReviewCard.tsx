@@ -24,7 +24,7 @@ import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import { MarkFollowedUpButton } from '../shared/followup/MarkFollowedUpButton'
 import followupStyles from '../shared/followup/Followup.module.css'
 import { RemoveButton } from '../shared/RemoveButton'
-import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, IndentIcon, MoreIcon, OpenIcon, TrashIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, IndentIcon, MoreIcon, OpenIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useTaskNotesSource } from '../task/notes/use-task-notes-source'
 import { RowCheckbox } from '../task/row-cells'
@@ -32,7 +32,7 @@ import { StatusUpdatesSection } from '../task/status-updates/StatusUpdatesSectio
 import { SubtasksSection } from '../task/subtasks/SubtasksSection'
 import { storedSubtaskMenuEntries } from '../task/subtasks/subtask-menu'
 import { TaskDetailsBody, TaskNotesSection } from '../task/TaskDetailsBody'
-import { planForDayEntries } from '../task/plan-menu'
+import { planForDayEntries, planForDayMenu } from '../task/plan-menu'
 import { taskLayoutClasses } from '../task/task-layout-classes'
 import { FactDateField, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
 import { TaskFollowupFields, type FollowupFieldParts } from '../task/TaskFollowupFields'
@@ -443,14 +443,56 @@ function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }: {
 }
 
 /**
+ * **Plan ▾** (the review footer's): the card ⋯'s Plan for day › as its own
+ * menu — the week's days and Pick a date… (`planForDayMenu`), each a plan
+ * write. A secondary button on the card's footer; on the medium face's, a
+ * word button. None for a completed task.
+ */
+function ReviewPlanButton({ todo, today, compact }: { todo: PersistedTodoItem; today: Date; compact: boolean }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLButtonElement>(null)
+  const entries = planForDayMenu(todo, today)
+  if (entries.length === 0) return null
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={compact ? styles.linkBtn : styles.secondaryBtn}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-review-plan=""
+        onClick={() => setOpen((v) => !v)}
+      >
+        {!compact && <WidgetKindIcon kind="planner" />}
+        Plan
+        <ChevronDownIcon size={10} />
+      </button>
+      {open && (
+        <MenuPopover
+          anchorRef={ref}
+          placement={compact ? 'top-start' : 'top-end'}
+          label="Plan for day"
+          entries={entries}
+          width={216}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/**
  * The review's footer. With the follow-up fields (the card, task layout B):
  * ‹ Back and Skip › at its left end, then the fields — Last, Next and its
- * quick intervals — and Mark followed up › (its tooltip says what it will
- * do; the Next field it reads is right beside it). In the DOM the fields
- * and Mark followed up come first, so the update line's Tab reaches Last,
+ * quick intervals —, Plan ▾ and Mark followed up › (its tooltip says what it will
+ * do; the Next field it reads is right beside it). In the DOM the fields,
+ * Plan ▾ and Mark followed up come first, so the update line's Tab reaches Last,
  * then Next, before Back and Skip (which the rail's ← / → also do). Without
  * them (the medium face): Open card ↗ (`onOpenCard`, the task in its
- * editor), then Back, Skip and Mark followed up ›.
+ * editor) and Plan ▾, then Back, Skip and Mark followed up ›. The main
+ * button reads `Mark reviewed` while it would leave no next follow-up
+ * (`useReviewFollowUp`'s `markLabel`); it does the same either way.
  */
 function ReviewFooter({ followUp: f, compact = false, onOpenCard, followup }: {
   followUp: ReviewFollowUp
@@ -477,10 +519,13 @@ function ReviewFooter({ followUp: f, compact = false, onOpenCard, followup }: {
           Open card <OpenIcon size={12} />
         </button>
       )}
+      {!followup && <ReviewPlanButton todo={f.todo} today={f.today} compact />}
       {followup ?? <span className={styles.spacer} />}
       {!followup && steps}
+      {followup && <ReviewPlanButton todo={f.todo} today={f.today} compact={false} />}
       <MarkFollowedUpButton
         className={styles.markBtn}
+        label={f.markLabel}
         doneToday={f.doneToday}
         dimmed={f.doneToday && !f.hasUpdate}
         disabled={f.fieldDate === 'invalid'}

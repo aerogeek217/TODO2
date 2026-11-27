@@ -20,6 +20,69 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-26
+
+### Added
+
+- Three filter words take their days from Settings: `stale` (not changed for Settings' **Stale after**),
+  `due soon` and `followup soon` (late, or within the due-soon range). A filter using them follows Settings as you
+  change them.
+- **The Neglect map lists Forgotten tasks too.** A `Slipping | Forgotten` switch over its list picks which; it shows
+  Forgotten when nothing is slipping.
+- **Review a Neglect map zone.** Slipping, Drifting and Forgotten each have a Review button, beside the zone's word
+  and over the list. It opens the review in a popup, its filter the zone written out (`(due soon or followup soon)
+  and stale`), so it counts what the map counts.
+- **Hide statuses ›** in the Neglect map's menu: tasks with a ticked status leave the map, its counts and its
+  Review.
+- **Sweeps in the Review widget.** Clicking its empty filter field now lists four ready-made reviews first, each
+  with how many tasks it holds: **Forgotten** and **Slipping** (as the Neglect map counts them), **Needs attention**
+  (due soon or a follow-up due) and **No person**. Picking one puts its filter in the field, where you can read
+  and change it.
+- A **▾** at the end of the Review widget's filter field opens the same list of sweeps, people, tags and statuses.
+- **Plan ▾** in the Review widget's footer plans the task for a day of this week, or a date you pick, without
+  opening the card's ⋯ menu.
+
+### Changed
+
+- **The Neglect map places a task by its due date or its next follow-up, whichever comes first**, so a task you
+  have to chase slips too. A task with only a planned day is left off the map: the Planner holds it.
+- The Neglect map's untouched line is Settings' **Stale after**, the same days that fade a stale row. Its own
+  **Untouched after** is gone. With Stale after off, nothing on the map slips, drifts or is forgotten.
+- On the Neglect map, the bottom-left corner is now **Later** (it read Planned, like the Planner), and the strip
+  under the plot is **No dates**.
+- The light theme's teal is a little deeper, so white text on its buttons and chips is easier to read.
+- The tally in the top bar, the Planner's fold chevron and the Neglect map's dots are easier to click: each
+  takes a press at least 24px across, drawn as before.
+- The Review widget's main button reads **Mark reviewed** when the task will have no next follow-up. It does
+  the same as Mark followed up: it records today's review.
+- The Review widget's progress says how many tasks are left too: `12 left · 2 followed up`.
+- The online app loads a little less at start: the command palette loads the first time you open it, so that
+  first `Ctrl+K` can take a moment longer. The offline file is unchanged.
+
+### Fixed
+
+- A link in a task's notes whose address holds a `*` or a backtick copies as one whole link, instead of breaking
+  where italics began.
+- Double-clicking a Planner row no longer opens its task and closes it again at once.
+- Leaving a layout during **Move to layout** before the widgets are placed, and choosing **Save**, no longer saves
+  the layout without them or leaves behind a layout made for them: the move is called off, both layouts stay as
+  they were, and a notice says nothing moved.
+- In Edit layout, **More** in the widget tray is never cut off in a narrow window, and a short row's header hides
+  its `fit` / `folded` mark instead of cutting it mid-word.
+- The Neglect map's axis labels no longer run into each other in a small map: the due-soon mark (`+3d`) and the
+  `30d` mark step aside where there is no room for them.
+
+### Security
+
+- **The online version no longer loads its font from Google.** It uses the copy built into the app, as the offline
+  file does, and its security policy now lets the page load nothing from another site. It no longer tells a site
+  you follow a link to where you came from, as the offline file already didn't.
+- Notes copied or pasted no longer keep a link to another computer that names no scheme (`//host`,
+  `\\server\share`, or an address with a backslash): the link's text stays, its address is dropped. Brackets in a
+  pasted link's text no longer split it into another link.
+- Very long notes and Review filters can no longer freeze the app for seconds: the Markdown export and the Review
+  box's suggestions read them in one pass.
+
 ## 2026-11-25, second deployment
 
 ### Changed

@@ -4,7 +4,7 @@ import { CalendarIcon, CommandIcon } from './CommandIcons'
 import { FollowupFlagIcon } from './FollowupIcons'
 import { StatusMark } from './StatusMark'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
-import { HashIcon } from './icons'
+import { HashIcon, ReviewIcon } from './icons'
 import styles from './NlpPopup.module.css'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { PickerEntityMenu } from './EntityMenu'
@@ -78,6 +78,7 @@ function rowKey(row: AutocompleteRow, i: number): string {
     case 'entity': return `${row.item.kind}-${row.item.id}`
     case 'command': return row.command.name
     case 'value': return `v-${row.insert}`
+    case 'sweep': return `sweep-${row.id}`
     default: return `${row.kind}-${i}`
   }
 }
@@ -186,6 +187,27 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
         )
         return heading
           ? [<div key={`section-${row.section ?? ''}`} className={styles.section} role="presentation">{row.section}</div>, button]
+          : button
+      }
+      case 'sweep': {
+        const heading = view.rows[i - 1]?.kind !== 'sweep'
+        const button = (
+          <button
+            key={rowKey(row, i)}
+            type="button"
+            role="option"
+            aria-selected={active}
+            className={cls}
+            data-sweep={row.id}
+            {...common} onMouseDown={pick(row)}
+          >
+            <span className={styles.icon} data-tone={row.tone}><ReviewIcon size={14} /></span>
+            <span className={styles.name}>{row.label}</span>
+            <span className={styles.count}>{row.count}</span>
+          </button>
+        )
+        return heading
+          ? [<div key={`section-${row.section}`} className={styles.section} role="presentation">{row.section}</div>, button]
           : button
       }
       case 'create': {

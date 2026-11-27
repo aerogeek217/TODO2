@@ -78,10 +78,9 @@ const OFFLINE_CSP = [
 
 const CSP_META = /<meta http-equiv="Content-Security-Policy" content="[^"]*" \/>/g
 
-// Puts the offline policy in place of index.html's (which dev and the online
-// build use), and adds the file's other request guards beside it: no
-// Referer on anything (a link the user follows, the mail app's mailto:), no
-// DNS prefetch of link hosts (the CSP doesn't cover it).
+// Puts the offline policy in place of index.html's (which dev uses), and
+// adds the file's other request guard beside it: no DNS prefetch of link
+// hosts (the CSP doesn't cover it). index.html's no-referrer meta stays.
 function offlineCsp(): Plugin {
   return {
     name: 'offline-csp',
@@ -90,7 +89,6 @@ function offlineCsp(): Plugin {
       if (metas.length !== 1) throw new Error(`offline build: index.html should hold one CSP <meta>, found ${metas.length}`)
       return html.replace(CSP_META, [
         `<meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}" />`,
-        '<meta name="referrer" content="no-referrer" />',
         '<meta http-equiv="x-dns-prefetch-control" content="off" />',
       ].join('\n    '))
     },

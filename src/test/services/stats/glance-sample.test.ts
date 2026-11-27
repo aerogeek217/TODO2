@@ -22,7 +22,7 @@ function openTasks(tasks: readonly PersistedTodoItem[]): PersistedTodoItem[] {
   return tasks.filter((t) => !t.isCompleted)
 }
 
-const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, weekStartsOn: SAMPLE_CTX.weekStartsOn }
+const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, weekStartsOn: SAMPLE_CTX.weekStartsOn, staleAfterDays: 30 }
 const lookups = testLookups({ assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS, statuses: STATUSES })
 const NO_FILTER: FilterCriteria = { ...emptyFilterCriteria, markers: null }
 const Q4_FILTER: FilterCriteria = { ...NO_FILTER, tags: new Set([Q4]) }

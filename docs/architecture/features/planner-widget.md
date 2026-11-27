@@ -39,7 +39,7 @@ How the [Planner](planner.md) is drawn: its faces, its rows, the feedback during
 The strip sits over the days in one scroll. Under them **the trays dock** (`planner/PlannerDock`): Delayed, the Clear plans button and Unplanned on the darker ground, in a scroll of their own.
 
 - The dock's top edge is a separator sharing the height. A drag moves it, ↑ / ↓ step it 16px and a double-click resets it. The share is saved as the tab's view state `dockShare` (default 0.38).
-- Its chevron folds it (`dockFolded`) to one bar — `Delayed 2 · Unplanned 6` — that unfolds on a click and is a drop target meaning Unplanned. In a widget 400px wide or more, Unplanned's filter line sits over the bar's end, before the chevron, never past its middle.
+- Its chevron (22 × 12, a 24px press past the grip's edges) folds it (`dockFolded`) to one bar — `Delayed 2 · Unplanned 6` — that unfolds on a click and is a drop target meaning Unplanned. In a widget 400px wide or more, Unplanned's filter line sits over the bar's end, before the chevron, never past its middle.
 - Alone in its cell, the week arrows sit in the [top line](planner.md#top-line-and-reset-plan) around the range.
 - A 2px line under the tiles marks the days whose groups show in the day list (`planner-dock.useDaysInView`).
 

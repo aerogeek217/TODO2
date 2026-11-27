@@ -102,7 +102,7 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   nested?: boolean
 }
 
-type TaskEditPopupProps = EditModeProps | CreateModeProps
+export type TaskEditPopupProps = EditModeProps | CreateModeProps
 
 export function TaskEditPopup(props: TaskEditPopupProps) {
   const {
