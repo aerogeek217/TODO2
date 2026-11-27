@@ -55,12 +55,6 @@ export function reviewSweepCounts(base: StatsBase): Map<ReviewSweepId, number> {
   return new Map(SWEEP_PREDICATES.map(({ id, predicate }) => [id, kept(base, predicate).length]))
 }
 
-/** {@link reviewSweepCounts}, kept current with the tasks, the screen filter and Settings. */
-export function useReviewSweepCounts(): ReadonlyMap<ReviewSweepId, number> {
-  const base = useStatsBase()
-  return useMemo(() => reviewSweepCounts(base), [base])
-}
-
 /** The queue of `filter` (none: an empty queue). Pass the same object while the filter is the same (the store's). */
 export function useReviewWidgetQueue(filter: ReviewFilter | null | undefined): ReviewWidgetQueue {
   const predicate = useMemo(() => (filter ? reviewFilterPredicate(filter) : null), [filter])

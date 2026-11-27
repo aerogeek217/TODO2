@@ -163,7 +163,7 @@ export function neglectZoneReviewFilter(zone: NeglectReviewZone, hiddenStatusIds
 /** The Review field's sweeps (its browse list's first section). */
 export type ReviewSweepId = 'forgotten' | 'slipping' | 'attention' | 'unassigned'
 
-export interface ReviewSweep {
+interface ReviewSweep {
   id: ReviewSweepId
   label: string
   filter: ReviewFilter
