@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-26
+
 ### Added
 
 - Three filter words take their days from Settings: `stale` (not changed for Settings' **Stale after**),
