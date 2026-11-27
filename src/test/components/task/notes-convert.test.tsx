@@ -5,6 +5,7 @@ import { EditorView } from '@codemirror/view'
 import { undo } from '@codemirror/commands'
 import { db } from '../../../data/database'
 import { NotesBody, type NotesSource } from '../../../components/task/notes/NotesBody'
+import { TaskEditPopup } from '../../../components/task/TaskEditPopup'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -40,7 +41,7 @@ function Harness({ initial }: { initial: string }) {
     get: () => ref.current,
     set: (next) => { ref.current = next; rerender((n) => n + 1) },
   }), [])
-  return <NotesBody source={source} />
+  return <NotesBody source={source} taskEditor={TaskEditPopup} />
 }
 
 function setup(initial: string) {

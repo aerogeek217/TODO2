@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { EditorView } from '@codemirror/view'
 import { appliedScreenFilter, useFilterStore } from '../../../stores/filter-store'
@@ -28,9 +28,16 @@ import { createTaskFromDraft } from '../../../services/create-task'
 import { noteSubtaskDrafts, type NoteSubtaskTarget } from '../../../services/note-subtasks'
 import { QuickAddBar, type QuickAddDraft } from '../QuickAddBar'
 import { ConfirmDialog } from '../../shared/Dialog'
-import { TaskEditPopup } from '../TaskEditPopup'
+import type { TaskEditPopupProps } from '../TaskEditPopup'
 import { convertActionLabel, plural } from './convert-action-label'
 import { NotesConvertPreview, type PreviewRow } from './NotesConvertPreview'
+
+/**
+ * The task editor a note's drafts open in (`TaskEditPopup`), handed in by
+ * the host (`NotesBody`'s `taskEditor`): the editor's notes render this
+ * file, so importing the editor here would close an import cycle.
+ */
+export type NoteTaskEditor = ComponentType<TaskEditPopupProps>
 
 interface CreatedLine {
   line: ConvertLine
@@ -148,6 +155,8 @@ interface NotesConvertOptions {
   onToast?: (message: string) => void
   /** A task's notes: lines become that task's subtasks, at once, instead of tasks. */
   subtaskTarget?: NoteSubtaskTarget
+  /** Where lines become tasks: the editor Details and the preview's Edit open a draft in. */
+  taskEditor?: NoteTaskEditor
 }
 
 /**
@@ -171,7 +180,7 @@ interface NotesConvertOptions {
  * there is nothing to fill in or preview. The lines turn `✓` (or go, with the
  * setting) in the same undo step as the subtasks.
  */
-export function useNotesConvert({ viewRef, getText, setText, flush, onToast, subtaskTarget }: NotesConvertOptions) {
+export function useNotesConvert({ viewRef, getText, setText, flush, onToast, subtaskTarget, taskEditor: TaskEditor }: NotesConvertOptions) {
   const [state, setState] = useState<ConvertState | null>(null)
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -454,10 +463,10 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast, sub
         }}
       />
     )
-  } else if (state?.kind === 'single') {
+  } else if (state?.kind === 'single' && TaskEditor) {
     const { line, draft, typed } = state
     content = (
-      <TaskEditPopup
+      <TaskEditor
         mode="create"
         nested
         seed={draft}
@@ -506,8 +515,8 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast, sub
           onCancel={close}
           onDismiss={dismissPreview}
         />
-        {editingRow && (
-          <TaskEditPopup
+        {editingRow && TaskEditor && (
+          <TaskEditor
             key={editingRow.key}
             mode="create"
             nested

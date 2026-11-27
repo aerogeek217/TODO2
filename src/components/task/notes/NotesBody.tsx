@@ -8,7 +8,7 @@ import { NotesEditor } from './NotesEditor'
 import { NotesToolbar, type NotesConvertControl } from './NotesToolbar'
 import { storeNotesNlpConfig } from './notes-nlp-stores'
 import { showConvertScope } from './notes-convert-highlight'
-import { useNotesConvert } from './NotesConvert'
+import { useNotesConvert, type NoteTaskEditor } from './NotesConvert'
 import type { NoteSubtaskTarget } from '../../../services/note-subtasks'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesBody.module.css'
@@ -25,7 +25,7 @@ export interface NotesSource {
   flush?: () => Promise<void>
 }
 
-interface NotesBodyProps {
+interface NotesBodyBaseProps {
   onConvertToast?: (message: string) => void
   /** Show the inline formatting toolbar. Defaults to true. */
   showToolbar?: boolean
@@ -39,9 +39,19 @@ interface NotesBodyProps {
   placeholder?: string
   /** Draws the placeholder in the empty editor (the task layout's Notes box). */
   showPlaceholder?: boolean
-  /** A task's notes: the toolbar's Convert, Alt+T and the hover icon make that task's subtasks, not tasks. */
-  subtaskTarget?: NoteSubtaskTarget
 }
+
+/**
+ * What a convert makes: a task's notes (`subtaskTarget`) make that task's
+ * subtasks; any other note makes tasks, and hands in the task editor its
+ * drafts open in (`taskEditor`: `TaskEditPopup`, injected because the
+ * editor's own notes render this file).
+ */
+type NotesConvertTarget =
+  | { subtaskTarget: NoteSubtaskTarget; taskEditor?: undefined }
+  | { subtaskTarget?: undefined; taskEditor: NoteTaskEditor }
+
+type NotesBodyProps = NotesBodyBaseProps & NotesConvertTarget
 
 /**
  * Presentation-neutral notes body used by the notes widget, the task
@@ -49,7 +59,7 @@ interface NotesBodyProps {
  * (the toolbar's Convert, Alt+T — `useNotesConvert`); the outer chrome is
  * supplied by each surface.
  */
-export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, showPlaceholder, subtaskTarget }: NotesBodyProps) {
+export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, showPlaceholder, subtaskTarget, taskEditor }: NotesBodyProps) {
   const activeId = useNoteStore((s) => s.activeId)
   const notes = useNoteStore((s) => s.notes)
   const storeSetContent = useNoteStore((s) => s.setContent)
@@ -95,6 +105,7 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
     flush: flushNow,
     onToast: useCallback((message: string) => toastRef.current?.(message), [toastRef]),
     subtaskTarget,
+    taskEditor,
   })
   const { convertLine, convertScope } = notesConvert
   const canConvert = source != null || activeId != null

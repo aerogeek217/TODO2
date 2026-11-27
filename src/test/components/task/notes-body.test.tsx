@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import { db } from '../../../data/database'
 import { NotesBody } from '../../../components/task/notes/NotesBody'
+import { TaskEditPopup } from '../../../components/task/TaskEditPopup'
 import { useNoteStore } from '../../../stores/note-store'
 import { useTodoStore } from '../../../stores/todo-store'
 
@@ -22,7 +23,7 @@ describe('NotesBody', () => {
     await act(async () => {
       await useNoteStore.getState().load()
     })
-    render(<NotesBody />)
+    render(<NotesBody taskEditor={TaskEditPopup} />)
     // No legacy chips/hints, no save-status line.
     expect(screen.queryByText(/MD shorthand/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/convert current line/i)).not.toBeInTheDocument()
@@ -33,7 +34,7 @@ describe('NotesBody', () => {
     await act(async () => {
       await useNoteStore.getState().load()
     })
-    render(<NotesBody />)
+    render(<NotesBody taskEditor={TaskEditPopup} />)
     expect(screen.getByRole('toolbar', { name: /Notes formatting/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Bullet list')).toBeInTheDocument()
     expect(screen.getByLabelText('Copy as rich text')).toBeInTheDocument()
@@ -43,7 +44,7 @@ describe('NotesBody', () => {
     await act(async () => {
       await useNoteStore.getState().load()
     })
-    render(<NotesBody showToolbar={false} />)
+    render(<NotesBody showToolbar={false} taskEditor={TaskEditPopup} />)
     expect(screen.queryByRole('toolbar', { name: /Notes formatting/i })).not.toBeInTheDocument()
   })
 
@@ -53,7 +54,7 @@ describe('NotesBody', () => {
       await db.notes.add({ content: 'FROM STORE', createdAt: now, modifiedAt: now })
       await useNoteStore.getState().load()
     })
-    render(<NotesBody />)
+    render(<NotesBody taskEditor={TaskEditPopup} />)
     // CodeMirror renders content as plain text inside .cm-content; scan the DOM.
     await act(async () => {
       await Promise.resolve()
