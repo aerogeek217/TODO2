@@ -381,7 +381,7 @@ describe('the Review widget: the progress and its faces', () => {
     expect(within(top).getByTestId('top-line-name')).toHaveTextContent('Review')
     expect(screen.queryByTestId('review-widget-progress')).toBeNull()
     setFilter(person(1))
-    expect(within(top).getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
+    expect(within(top).getByTestId('review-widget-progress')).toHaveTextContent(/^2 left · 1 followed up$/)
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
     expect(within(row).queryByTestId('review-widget-progress')).toBeNull()
     expect(top.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -394,13 +394,13 @@ describe('the Review widget: the progress and its faces', () => {
     const host = document.querySelector<HTMLElement>('[data-review-widget]')!
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
     expect(host.firstElementChild).toBe(row)
-    expect(within(row).getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
+    expect(within(row).getByTestId('review-widget-progress')).toHaveTextContent(/^2 left · 1 followed up$/)
   })
 
-  it('medium face: the first open task, how many are followed up and the update line', () => {
+  it('medium face: the first open task, how many are left and followed up and the update line', () => {
     renderAt('medium')
     setFilter(person(1))
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^2 left · 1 followed up$/)
     expect(screen.getByTestId('review-card-title')).toBeInTheDocument()
     expect(screen.getByLabelText('Status update · today')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Open card/ })).toBeInTheDocument()
@@ -650,7 +650,7 @@ describe('the Review widget: the queue and where it stands', () => {
     })
     setFilter({ kind: 'date', field: 'followup', match: { match: 'range', start: null, end: { kind: 'offset', days: 0 } } })
     expect(rowIds()).toEqual(['1', '3'])
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^0 followed up$/)
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^2 left · 0 followed up$/)
     const followUp = (id: number) => act(() => {
       reviewWidgetSession('rv').getState().mark(id, 'done')
       reviewWidgetSession('rv').getState().next()
@@ -658,7 +658,7 @@ describe('the Review widget: the queue and where it stands', () => {
     })
     followUp(1)
     expect(rowIds()).toEqual(['3'])
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 left · 1 followed up$/)
     // The last one too: nothing left in the queue, the count still there.
     followUp(3)
     act(() => reviewWidgetSession('rv').getState().go(0))

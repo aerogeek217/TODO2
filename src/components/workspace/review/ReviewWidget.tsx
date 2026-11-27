@@ -41,7 +41,7 @@ import styles from './ReviewWidget.module.css'
  * The Review widget (item 12; widget feedback 2A, board Review-field): a
  * review in a cell — where every Review button jumps (2B,
  * `services/review-jump`, which sets its filter). Alone in its cell its top line reads `Review`, the
- * progress (`2 followed up`, with a filter; under 820px wide a Queue button
+ * progress (`12 left · 2 followed up`, with a filter; under 820px wide a Queue button
  * before it) and the cell's ⋯; under it the prompt row
  * (`ReviewFilterField`): one field that takes a filter expression — no kind
  * to choose. In a cell of several widgets there is no top line: the prompt
@@ -185,8 +185,8 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     )
   }
 
-  // How many are followed up; on the large face `All N reviewed` before it once every task has a mark. No
-  // place in the queue: the card is the current task.
+  // How many are left and followed up (`12 left · 2 followed up`); on the large face, once every task has a
+  // mark, `All N reviewed` in place of the none left. No place in the queue: the card is the current task.
   const queueLabel = `Review queue: ${filterText}`
   // The large face under 820px wide: no queue column; a Queue button opens it.
   const queueFolded = face === 'large' && !!todo && reviewQueueFolds(width)
@@ -200,7 +200,7 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
           {' · '}
         </>
       )}
-      {status != null && <><strong>{status}</strong>{' · '}</>}
+      {status != null ? <><strong>{status}</strong>{' · '}</> : `${left} left · `}
       {`${done} followed up`}
     </span>
   )
