@@ -40,6 +40,8 @@ export interface WsTabSeed {
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
     colourBy?: { tags: string[] } | 'people' | 'none'
+    /** Hide statuses: names from `statuses`. */
+    hiddenStatuses?: string[]
   }
 }
 
@@ -491,6 +493,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         const n = tab.neglect
         if (n.colourBy === 'people' || n.colourBy === 'none') config.colourBy = { kind: n.colourBy }
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
+        if (n.hiddenStatuses) config.hiddenStatusIds = n.hiddenStatuses.map((name) => statusIds.get(name)).filter((id) => id != null)
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.kind === 'shortcuts' && tab.board) Object.assign(config, tab.board)

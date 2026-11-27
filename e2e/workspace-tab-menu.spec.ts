@@ -6,7 +6,7 @@ import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/work
  * (D26 AA1), its widget's entries first: a list tab's has no Change list
  * (UX cleanup 4A); Shift+F10 on a tab opens the menu under the tab and Esc
  * gives the tab its focus back; the menu stays inside the window; the
- * Neglect map's Untouched after submenu sits beside its item.
+ * Neglect map's Hide statuses submenu sits beside its item.
  *
  * JSDOM is unauthoritative here — the menus portal to `document.body` and are
  * placed / clamped from `getBoundingClientRect`; hover and focus order are
@@ -95,19 +95,30 @@ test('the tab menu opened at the window’s right edge stays inside the window',
   expect(m.y + m.height).toBeLessThanOrEqual(vp.height - 8 + 0.5)
 })
 
-test('a widget setting’s submenu (the Neglect map’s Untouched after): → opens it on the current value beside its item; ← goes back', async ({ page }) => {
-  await seedWorkspace(page, twoColumns)
+test('a widget setting’s submenu (the Neglect map’s Hide statuses): → opens it on the current value beside its item; ← goes back', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...twoColumns,
+    statuses: ['Parked', 'On ice'],
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'left', rows: [wsRow({ id: 'leftCell', tabs: [{ id: 'mapTab', kind: 'neglect', neglect: { hiddenStatuses: ['On ice'] } }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'right', rows: [wsRow({ id: 'rightCell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
+      ],
+    }],
+  })
   await wsTab(page, 'mapTab').click({ button: 'right' })
   const menu = tabMenu(page)
-  const item = menu.getByRole('menuitem', { name: /Untouched after/ })
-  // First Color by, then Untouched after.
+  const item = menu.getByRole('menuitem', { name: /Hide statuses/ })
+  // First Color by, then Hide statuses.
   await expect(menu.getByRole('menuitem', { name: /Color by/ })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(item).toBeFocused()
-  await expect(item).toContainText('14 days')
+  await expect(item).toContainText('On ice')
   await page.keyboard.press('ArrowRight')
-  const sub = page.getByRole('menu', { name: 'Untouched after' })
-  await expect(sub.getByRole('menuitemradio', { name: /14 days/ })).toBeFocused()
+  const sub = page.getByRole('menu', { name: 'Hide statuses' })
+  // The focus lands on the ticked status, not the first.
+  await expect(sub.getByRole('menuitemcheckbox', { name: /On ice/ })).toBeFocused()
   const m = await rect(menu)
   const s = await rect(sub)
   const i = await rect(item)
