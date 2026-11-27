@@ -858,6 +858,33 @@ describe('the Review widget: sweeps and the footer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
     expect(screen.getByRole('button', { name: /^Mark reviewed/ })).toBeInTheDocument()
   })
+
+  it('Plan ▾ before the main button opens Plan for day’s days and Pick a date…; none for a completed task', () => {
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
+    const footer = document.querySelector<HTMLElement>('[data-review-footer]')!
+    const plan = within(footer).getByRole('button', { name: /^Plan/ })
+    const mark = within(footer).getByRole('button', { name: /^Mark/ })
+    expect(plan.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(plan)
+    const menu = screen.getByRole('menu', { name: 'Plan for day' })
+    expect(within(menu).getAllByRole('menuitemradio')[0]).toHaveTextContent(/^Today/)
+    expect(within(menu).getByRole('menuitem', { name: 'Pick a date…' })).toBeInTheDocument()
+    fireEvent.click(plan)
+    expect(screen.queryByRole('menu', { name: 'Plan for day' })).toBeNull()
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 ? { ...t, isCompleted: true } : t)) })
+    })
+    expect(within(footer).queryByRole('button', { name: /^Plan/ })).toBeNull()
+  })
+
+  it('the medium face’s Plan ▾ sits beside Open card', () => {
+    renderAt('medium')
+    setFilter(person(1))
+    const footer = document.querySelector<HTMLElement>('[data-review-footer]')!
+    const open = within(footer).getByRole('button', { name: /Open card/ })
+    expect(open.nextElementSibling).toBe(within(footer).getByRole('button', { name: /^Plan/ }))
+  })
 })
 
 describe('reviewFaceFor', () => {

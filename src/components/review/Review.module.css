@@ -567,14 +567,15 @@ input.titleInput {
 }
 
 /* As the footer narrows (the widget's cell): the quick intervals go first, then the fields' words
- * shorten to the date (the relative part goes; the fields narrow), then the labels go. */
-@container review-footer (max-width: 999px) {
+ * shorten to the date (the relative part goes; the fields narrow), then the labels go, then Plan ▾
+ * (the card's ⋯ still has Plan for day ›). The steps are the footer's content width. */
+@container review-footer (max-width: 1059px) {
   .footer [data-followup-quick] {
     display: none;
   }
 }
 
-@container review-footer (max-width: 819px) {
+@container review-footer (max-width: 899px) {
   .footer [data-fact-date-field] {
     width: 116px;
   }
@@ -584,8 +585,21 @@ input.titleInput {
   }
 }
 
-@container review-footer (max-width: 699px) {
+@container review-footer (max-width: 799px) {
   .footer [data-followup-label] {
+    display: none;
+  }
+}
+
+@container review-footer (max-width: 739px) {
+  .footer:not(.footerCompact) [data-review-plan] {
+    display: none;
+  }
+}
+
+/* The medium face's footer: its Plan ▾ gives way in a narrow card. */
+@container review-footer (max-width: 399px) {
+  .footerCompact [data-review-plan] {
     display: none;
   }
 }

@@ -107,6 +107,14 @@ function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry[] {
 }
 
 /**
+ * Plan for day ›'s own entries, without the item that opens them: the
+ * review footer's **Plan ▾**. None for a completed task, as the item has none.
+ */
+export function planForDayMenu(todo: PersistedTodoItem, today: Date): MenuEntry[] {
+  return todo.isCompleted ? [] : planMenuEntries(todo, today)
+}
+
+/**
  * **Plan for day ›** for any open task, outside a Planner — every task menu
  * (a row's right-click, a calendar entry's, a search result's) and the task
  * editor's and the review card's ⋯ — its submenu `planMenuEntries`. The

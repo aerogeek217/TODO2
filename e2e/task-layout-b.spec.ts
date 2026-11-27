@@ -458,17 +458,17 @@ test.describe('the review card’s footer', () => {
     const last = widget.getByRole('textbox', { name: 'Last follow-up' })
     await expect(widget.getByTestId('review-last-followup')).toContainText('2 weeks ago')
 
-    // Tab from the update line: Last and its calendar, Next, its ×, calendar and quick buttons, Mark followed up, then Back and Skip.
+    // Tab from the update line: Last and its calendar, Next, its ×, calendar and quick buttons, Plan ▾, Mark followed up, then Back and Skip.
     await update.focus()
     const stops: string[] = []
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 13; i++) {
       await page.keyboard.press('Tab')
       const name = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent?.trim() ?? '')
       stops.push(name)
       if (/Skip/.test(name)) break
     }
     expect(stops.slice(0, 9)).toEqual(['Last follow-up', 'Pick last follow-up date', 'Next follow-up', 'Clear next follow-up', 'Pick next follow-up date', 'Follow up in 1 day', 'Follow up in 1 week', 'Follow up in 1 month', 'Follow up in 3 months'])
-    expect(stops.slice(9).join(' | ')).toMatch(/Mark followed up.*\|.*Back.*\|.*Skip/)
+    expect(stops.slice(9).join(' | ')).toMatch(/^Plan \| Mark followed up.*\|.*Back.*\|.*Skip/)
 
     // A future day is refused: nothing written.
     const before = await storedLast(page)
@@ -554,6 +554,8 @@ test.describe('the Review widget across widths', () => {
       await sizeWidget(page, width, 600)
       await expect(widget).toHaveAttribute('data-review-face', 'large')
       await expectLayoutB(page, widget, { footer: widget.locator('[data-review-footer]') })
+      // Plan ▾ gives way last, under 780px (the card's ⋯ keeps Plan for day ›).
+      await expect(widget.locator('[data-review-footer] [data-review-plan]')).toBeVisible({ visible: width >= 780 })
     }
   })
 
