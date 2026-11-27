@@ -54,6 +54,8 @@ History before 2026-11-19 is in the git log.
 - The Review widget's main button reads **Mark reviewed** when the task will have no next follow-up. It does
   the same as Mark followed up: it records today's review.
 - The Review widget's progress says how many tasks are left too: `12 left · 2 followed up`.
+- The online app loads a little less at start: the command palette loads the first time you open it, so that
+  first `Ctrl+K` can take a moment longer. The offline file is unchanged.
 
 ### Fixed
 

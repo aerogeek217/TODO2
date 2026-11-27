@@ -20,6 +20,8 @@ The app has two builds: the online build (`vite.config.ts` → `dist/index.html`
 
 `e2e/built-csp.spec.ts` checks the policy whole, and that the page requests nothing outside its own folder.
 
+The lazy parts of `App.tsx` are chunks in `./assets`, which `script-src 'self'` allows: the workspace, Settings, and the command palette with Fuse, loaded the first time the palette opens. The offline file inlines them all, so it has nothing to load.
+
 ## Offline single file
 
 The file has its own policy (`offlineCsp`):

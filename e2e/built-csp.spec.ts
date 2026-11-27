@@ -106,9 +106,11 @@ function watchRequests(context: BrowserContext): { remote: () => string[]; all: 
 }
 
 /**
- * Starts the app, adds a task through Quick Add and opens Settings — whose
- * backdrop blurs the page in the built CSS too (the minifier once kept only
- * a `-webkit-` prefixed blur, which Chromium ignores).
+ * Starts the app, adds a task through Quick Add, opens the command palette
+ * (a lazy chunk in the online build, inlined in the offline file) and finds
+ * that task in it, and opens Settings — whose backdrop blurs the page in the
+ * built CSS too (the minifier once kept only a `-webkit-` prefixed blur,
+ * which Chromium ignores).
  */
 async function exercise(page: Page) {
   await expect(page.locator('[data-ws-area]')).toBeVisible()
@@ -117,6 +119,13 @@ async function exercise(page: Page) {
   await quickAdd.getByPlaceholder('New task…').fill('Built under the CSP')
   await page.keyboard.press('Enter')
   await expect(quickAdd).toBeHidden()
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await expect(palette.getByRole('combobox')).toBeFocused()
+  await palette.getByRole('combobox').fill('built under')
+  await expect(palette.getByRole('option', { name: /Built under the CSP/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
   await openSettings(page, 'Backups')
   await expect.poll(() => page.locator('[data-modal-backdrop]').evaluate((el) => getComputedStyle(el).backdropFilter)).toMatch(/^blur\(\d+px\)$/)
 }

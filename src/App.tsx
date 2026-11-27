@@ -10,7 +10,6 @@ import { TopBar } from './components/layout/TopBar'
 import { StartScreen } from './components/layout/StartScreen'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
-import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './components/task/QuickAddBar'
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
@@ -53,6 +52,8 @@ import { addWidgetFromPalette, openWidgetLargerFromPalette } from './components/
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then(m => ({ default: m.SettingsModal })))
 const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
+// Its own chunk in the online build (with Fuse), loaded the first time the palette opens; the offline file inlines it.
+const CommandPalette = lazy(() => import('./components/overlays/CommandPalette').then(m => ({ default: m.CommandPalette })))
 import styles from './App.module.css'
 import './styles/fonts.css'
 import './styles/tokens.css'
@@ -63,7 +64,8 @@ import './styles/tokens.css'
  * tasks, people, their assignments, statuses, the layouts and the theme, and is rebuilt when they change: a palette opened while the
  * app is still loading gains Review With › as the tasks and their people
  * arrive. Commands that act read
- * the stores when they run (`getState`).
+ * the stores when they run (`getState`). The palette itself is lazy: the
+ * first open waits for its chunk, showing nothing meanwhile.
  */
 export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
@@ -116,7 +118,11 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
     (query: string) => searchDynamicCommands(query, commandCtx),
     [commandCtx],
   )
-  return <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={onClose} />
+  return (
+    <Suspense fallback={null}>
+      <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={onClose} />
+    </Suspense>
+  )
 }
 
 function AppBulkConfirmDialog() {
