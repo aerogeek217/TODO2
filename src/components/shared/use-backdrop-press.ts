@@ -13,15 +13,18 @@ interface BackdropPressOptions {
  * itself calls `onClose`, so a text drag let go over it closes nothing. The
  * second press of a double-click (`detail >= 2`) closes nothing either: the
  * first click may have just opened the dialog, its backdrop now under the
- * pointer. The backdrop takes the click, so nothing underneath gets it.
+ * pointer. That press does nothing else: no word selection across the page
+ * and no focus taken from the dialog. The backdrop takes the click, so
+ * nothing underneath gets it.
  */
 export function useBackdropPress(onClose: () => void, { enabled = true, keepFocus = false }: BackdropPressOptions = {}) {
   const downOnBackdrop = useRef(false)
   return {
     onMouseDown: (e: ReactMouseEvent<HTMLElement>) => {
       const onBackdrop = e.target === e.currentTarget
-      if (keepFocus && onBackdrop) e.preventDefault()
-      downOnBackdrop.current = onBackdrop && e.detail < 2
+      const repeat = e.detail >= 2
+      if (onBackdrop && (keepFocus || repeat)) e.preventDefault()
+      downOnBackdrop.current = onBackdrop && !repeat
     },
     onClick: (e: ReactMouseEvent<HTMLElement>) => {
       const pressed = downOnBackdrop.current

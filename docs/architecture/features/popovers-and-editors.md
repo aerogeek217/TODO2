@@ -15,7 +15,7 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 ## A dialog's backdrop
 
 - A press that starts and ends on the backdrop closes the dialog (`shared/use-backdrop-press`, every modal and Quick Add's scrim). A text drag let go over it closes nothing.
-- Nor does a double-click's second press (`detail >= 2`): a Planner row opens its task on one click, and the second press lands on the new backdrop.
+- Nor does a double-click's second press (`detail >= 2`): a Planner row opens its task on one click, and the second press lands on the new backdrop. That press selects no text and leaves the focus in the dialog.
 
 ## Editors that hold a copy
 

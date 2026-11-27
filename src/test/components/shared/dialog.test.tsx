@@ -143,6 +143,17 @@ describe('Dialog', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('a double-click’s second press on the backdrop selects nothing and keeps the focus (its default is prevented)', () => {
+    render(
+      <Dialog open onClose={vi.fn()} title="T">
+        <p>hi</p>
+      </Dialog>
+    )
+    const backdrop = document.querySelector('[data-dialog-backdrop]')!
+    expect(fireEvent.mouseDown(backdrop, { detail: 1 })).toBe(true)
+    expect(fireEvent.mouseDown(backdrop, { detail: 2 })).toBe(false)
+  })
+
   it('does not close when a press inside the panel ends on the backdrop', () => {
     const onClose = vi.fn()
     render(
