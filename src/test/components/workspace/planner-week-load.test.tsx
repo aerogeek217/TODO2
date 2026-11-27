@@ -7,6 +7,7 @@ import { usePlannerMenuEntries } from '../../../components/workspace/planner/pla
 import { PlannerWidget } from '../../../components/workspace/planner/PlannerWidget'
 import { WeekLoadMeter } from '../../../components/workspace/planner/WeekLoadMeter'
 import { WeekLoadHost } from '../../../components/workspace/planner/WeekLoadPopover'
+import { useWeekLoad } from '../../../hooks/use-week-load'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
 import type { PlannerTab } from '../../../models/workspace-layout'
@@ -108,9 +109,14 @@ const step = (name: 'Previous week' | 'Next week', times = 1) => {
   for (let i = 0; i < times; i++) fireEvent.click(within(popover()).getByRole('button', { name }))
 }
 
+/** The meter as the Planner mounts it: handed the widget's one `useWeekLoad`. */
+function Meter() {
+  return <WeekLoadMeter load={useWeekLoad()} />
+}
+
 describe('the meter', () => {
   it('shows this week’s dates against the usual week: the bar in the kinds’ colors, `5 / 4`, named in words', () => {
-    render(<WeekLoadMeter />)
+    render(<Meter />)
     const meter = screen.getByRole('button', { name: 'This week: 5 dates, usual 4' })
     expect(meter).toHaveTextContent('5 / 4')
     expect(getByTooltip(document.body, 'This week: 5 dates, usual 4')).toBe(meter)
@@ -124,12 +130,12 @@ describe('the meter', () => {
 
   it('draws nothing until the events are read', () => {
     useTrendEventsStore.setState({ entries: new Map([[trendEventsKey('week-load', TODAY, 1), { events: null, stale: false, loading: true }]]), generation: 0 })
-    const { container } = render(<WeekLoadMeter />)
+    const { container } = render(<Meter />)
     expect(container).toBeEmptyDOMElement()
   })
 
   it('a click opens the popover on this week and closes it again; Esc closes it and hands the focus back', () => {
-    render(<WeekLoadMeter />)
+    render(<Meter />)
     const meter = screen.getByRole('button', { name: /^This week/ })
     fireEvent.click(meter)
     expect(meter).toHaveAttribute('aria-expanded', 'true')
@@ -150,7 +156,7 @@ describe('the meter', () => {
 
 describe('the popover', () => {
   const open = () => {
-    render(<WeekLoadMeter />)
+    render(<Meter />)
     fireEvent.click(screen.getByRole('button', { name: /^This week/ }))
   }
 
